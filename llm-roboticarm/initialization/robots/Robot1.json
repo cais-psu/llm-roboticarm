@@ -1,0 +1,7 @@
+{
+  "Robot1": {
+      "annotation": "This agent handles sorting, assembly operations.",
+      "instructions": "Perform  operations as required, including sorting the components and assembly of the components",
+      "functions": ["sorting", "assembly"]
+  }
+}

@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "llm-roboticarm"
+version = "0.1.0"
+description = ""
+authors = ["Jonghan Lim <jxl567@psu.edu>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.11.6"
+openai = "^1.11.1"
+requests = "^2.31.0"
+numpy = "^1.26.3"
+pvrecorder = "^1.2.2"
+pygame = "^2.5.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

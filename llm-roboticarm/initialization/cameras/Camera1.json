@@ -1,0 +1,14 @@
+{
+  "Camera1": {
+      "annotation": "This agent handles identifying components.",
+      "instructions": "Perform operations as required, including  the external shape and counterboring for holes. Your name is Camera1. The tool number for contouring T4. The tool number for counterboring is T6. These information is used for G-Code.",
+      "functions": ["Detecting"],
+      "configurations": {
+        "process_time": 2,
+        "mtbf": 84,
+        "mttr": 2,
+        "defect_rate": 0.2,
+        "breakdown_rate": 0.1
+      }
+  }
+}
