@@ -1,0 +1,9 @@
+# directories
+.venv/
+.idea/
+__pycache__/
+
+# file types
+*.log
+
+# files

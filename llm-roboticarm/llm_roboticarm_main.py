@@ -45,7 +45,7 @@ def transcribe_and_append_command(audio_path):
 recorder = VoiceRecorder()
 
 # Define the file paths for the JSON files
-robot_file_path = 'llm-roboticarm/initialization/robots/'
+robot_file_path = 'initialization/robots/'
 
 # Init Files
 robot_init_list = utils.get_init_files(robot_file_path)

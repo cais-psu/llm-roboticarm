@@ -22,7 +22,7 @@ from prompts import PROMPT_MAS_AGENT, BASE_INSTRUCTIONS
 # Create a logger
 global_logger = logging.getLogger(__name__)
 global_logger.setLevel(logging.INFO)
-file_handler = logging.FileHandler('llm-roboticarm/log/global.log', mode='a')
+file_handler = logging.FileHandler('log/global.log', mode='a')
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
@@ -55,7 +55,7 @@ class LlmAgent:
         self.logger = logging.getLogger(f'agent_{name}')
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_actions.log', mode='a')
+        file_handler = logging.FileHandler(f'log/{name}_actions.log', mode='a')
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
@@ -254,7 +254,7 @@ class User:
         self.logger = logging.getLogger(f'agent_{self.name}')
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_actions.log', mode='a')
+        file_handler = logging.FileHandler(f'log/{self.name}_actions.log', mode='a')
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)

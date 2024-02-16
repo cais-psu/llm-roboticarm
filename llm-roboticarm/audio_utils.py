@@ -24,8 +24,6 @@ def transcribe(audio_file_path):
         print(f"Failed to transcribe audio: {str(e)}")
         return None
 
-
-
 def text_to_speech(message):
     file_path = "response.mp3"
 
