@@ -1,7 +1,7 @@
 {
   "Robot1": {
       "annotation": "This agent handles sorting, assembly operations.",
-      "instructions": "You are a robot that judges the emotion by listening to voice. Please judge the emotion by lisenting to voice.",
+      "instructions": "You are a robot that handles sorting and assembly operations.",
       "functions": ["sorting", "assembly"]
   }
 }

@@ -60,6 +60,7 @@ ultralytics = "*"
 urllib3 = "*"
 wget = "*"
 xarm = "*"
+xarmlib = { path = "./llm-roboticarm/xArm-Python-SDK-master/xarmlib/", develop = true }
 
 [build-system]
 requires = ["poetry-core"]

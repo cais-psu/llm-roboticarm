@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-import utils
+import robot_utils
 
 from typing import Union
 
@@ -22,7 +22,7 @@ from prompts import PROMPT_MAS_AGENT, BASE_INSTRUCTIONS
 # Create a logger
 global_logger = logging.getLogger(__name__)
 global_logger.setLevel(logging.INFO)
-file_handler = logging.FileHandler('log/global.log', mode='a')
+file_handler = logging.FileHandler('llm-roboticarm/log/global.log', mode='a')
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
@@ -55,7 +55,7 @@ class LlmAgent:
         self.logger = logging.getLogger(f'agent_{name}')
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
-        file_handler = logging.FileHandler(f'log/{name}_actions.log', mode='a')
+        file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_actions.log', mode='a')
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
@@ -226,17 +226,72 @@ class LlmAgent:
 
         return func_res, msgs
 
+    def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> str:
+        # choose the right model
+        with_functions = len(self.function_info) > 0
+        if model:
+            model_ = model
+        elif with_functions:
+            model_ = self.model
+        else:
+            model_ = self.non_function_model
+
+        # Manufacturing process is executed and completed from the previous chat function
+        if func_res['func_type'] == "roboticarm_process":
+            if func_res['status'] == "completed":
+                # get response from LLM
+                func_msg = {
+                    "role": "function",
+                    "name": "Robot1",
+                    "content": func_res['content'],
+                }
+                msgs.append(func_msg)
+                self.logger.info(f"Msgs: {msgs}")
+                
+                function_call = {"name": f"{func_res['product_name']}"}          
+            elif func_res['status'] == "failed":
+                #TODO: make logic when it is failed
+                pass
+
+        response = self.__get_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
+        self.logger.info(response)
+
+        msgs.append(response.choices[0].message)
+        try:
+            func = response.choices[0].message.function_call.name
+            args = json.loads(response.choices[0].message.function_call.arguments)
+            
+            # execute python 'message' function
+            self.executables[func](**args)
+            self.logger.info(f"Function call: {func}; Arguments: {args}")
+
+            #Clear the completed task
+            self.inbox.pop(0)
+        except KeyError:
+            if response.choices[0].finish_reason == "stop":
+                if 'completed' in response.choices[0].content:
+                    #Clear the completed task
+                    self.inbox.clear()
+                else:
+                    self.logger.info("No further function call to execute")
+        except Exception as e:
+            self.logger.error(f"An error occurred during function execution: {e}")  
+
     def run(self, peers: list[LlmAgent]):
         if self.inbox:
             for new in self.inbox:
                 for sender, content in new:
-                    task_identifier = utils.get_task_identifier(sender, content)
+                    task_identifier = robot_utils.get_task_identifier(sender, content)
                     if self.task_states.get(task_identifier) not in ['running', 'completed']:
                         self.logger.info(f"Running agent: {self.name}")
                         self.setup_peer_message_functions(peers)
                         self.task_states[task_identifier] = 'running'
                         msg_history_as_text = self._msg_history_to_prompt(new)
                         func_res, msgs = self.chat(msg_history_as_text)
+                        if 'func_type' in func_res:
+                            self.chat_after_function_execution(func_res, msgs)
+                        self.logger.info(f"Run for agent {self.name} done.")
+                        self.task_states[task_identifier] = 'completed'
         else:
             pass
 
@@ -254,7 +309,7 @@ class User:
         self.logger = logging.getLogger(f'agent_{self.name}')
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
-        file_handler = logging.FileHandler(f'log/{self.name}_actions.log', mode='a')
+        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_actions.log', mode='a')
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
@@ -272,7 +327,7 @@ class User:
         if self.inbox:
             for new in self.inbox:
                 for sender, content in new:
-                    task_identifier = utils.get_task_identifier(sender, content)
+                    task_identifier = robot_utils.get_task_identifier(sender, content)
                     if self.task_states.get(task_identifier) not in ['running', 'completed']:
                         self.logger.info(f"Running agent: {self.name}")
                         self.task_states[task_identifier] = 'running'
@@ -283,7 +338,7 @@ class User:
                             
         if self.command:
             for new in self.command:
-                command_identifier = utils.get_command_identifier(new)       
+                command_identifier = robot_utils.get_command_identifier(new)       
                 if self.task_states.get(command_identifier) not in ['running', 'completed']:
                     #self.logger.info(f"Running agent: {self.name}")
                     self.task_states[command_identifier] = 'running'

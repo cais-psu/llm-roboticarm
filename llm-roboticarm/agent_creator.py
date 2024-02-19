@@ -2,7 +2,7 @@ from openai_agent import (
     LlmAgent,
     User,
 )
-import utils
+import robot_utils
 
 def create_user():
     user = User()
@@ -11,7 +11,7 @@ def create_user():
 def create_robot_agents(robot_init_list, robot_functions):
     agents = []
     for robot_init in robot_init_list:
-        config = utils.load_json_data(robot_init)
+        config = robot_utils.load_json_data(robot_init)
         try:
             for name, robot_data in config.items():
                 functions_ = []
@@ -25,7 +25,7 @@ def create_robot_agents(robot_init_list, robot_functions):
                             functions_.append(function_ref)  # Append the function reference
                         else:
                             print(f"Function '{function_name}' not found in functions module for agent {name}.")
-
+                print(functions_)
                 agent = LlmAgent(
                     name=name, 
                     annotation=robot_data.get('annotation', None),

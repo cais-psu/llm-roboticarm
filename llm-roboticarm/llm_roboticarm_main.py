@@ -5,11 +5,11 @@ from voice_recorder import VoiceRecorder
 import audio_utils
 import time
 
-import asyncio
 from agent_management_system import AgentManagementSystem
-import utils
+import robot_utils
 import agent_creator
 import functions
+import os, sys
 
 def log_message(message):
     message_log.configure(state='normal')  # Enable editing of the Text widget
@@ -45,10 +45,10 @@ def transcribe_and_append_command(audio_path):
 recorder = VoiceRecorder()
 
 # Define the file paths for the JSON files
-robot_file_path = 'initialization/robots/'
+robot_file_path = 'llm-roboticarm/initialization/robots/'
 
 # Init Files
-robot_init_list = utils.get_init_files(robot_file_path)
+robot_init_list = robot_utils.get_init_files(robot_file_path)
 
 # User Creation
 user = agent_creator.create_user()
