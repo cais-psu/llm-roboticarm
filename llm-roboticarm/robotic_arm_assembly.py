@@ -2,7 +2,6 @@
 import os
 import threading
 import sys
-
 import time
 
 import traceback
@@ -36,10 +35,11 @@ class RoboticArmAssembly:
         }
         self.step_completed = None
 
-    def cameraCheck(self):
-        path = 'C:/Users/jongh/projects/llm-roboticarm/vision_data/check.pt'
-        model = torch.hub.load('ultralytics/yolov5', 'custom', path, force_reload=False)
-        cap = cv2.VideoCapture(4)
+    def cameraCheck(self, assembly_step):
+        path = 'llm-roboticarm/vision_data/check.pt'
+        
+        model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
+        cap = cv2.VideoCapture(2)
         while True:
             ret, frame = cap.read()
             #frame = frame[121:264, 223:393]
@@ -50,18 +50,20 @@ class RoboticArmAssembly:
 
             if not coords_plus.empty:
                 for index, row in coords_plus.iterrows():
-                    name = row['name']
+                    assembly_step = row['name']
 
-                    if name == 'wedge':
+                    if assembly_step == 'wedge':
                         x1 = int(row['xmin'])
                         y1 = int(row['ymin'])
                         x2 = int(row['xmax'])
                         y2 = int(row['ymax'])
                         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                exit()
 
             cv2.imshow("CHECK", frame)
             if cv2.waitKey(1) & 0xFF == 27:
                 break
+            
             return
 
     def objectPlace(self, objectType):
@@ -72,9 +74,7 @@ class RoboticArmAssembly:
             print(path)
             
             model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-            #model = torch.hub.load('ultralytics/yolov5', 'custom', path, force_reload=False)
-            #model = torch.hub.load('ultralytics/yolov5', 'custom', path, force_reload=False)
-            cap = cv2.VideoCapture(0)
+            cap = cv2.VideoCapture(1)
             temp = 0
             temp2 = 0
             if objectType=='housing':
@@ -512,7 +512,13 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during wedge movement"
                         
+        try:
+            self.cameraCheck("wedge")
+        except:
+            return f"Error: wedge object placement is not done correctly."
+    
         self.step_completed = "wedge"
+        
         return "Wedging step completed successfully."
                 
     def perform_spring_step(self):
@@ -567,7 +573,19 @@ class RoboticArmAssembly:
                 return self.step_completed, message
         
         return self.step_completed, message
+    
+    def find_available_cameras(self):
+        """Attempt to open cameras within a range to see which indices are available."""
+        available_cameras = []
+        for index in range(5):
+            cap = cv2.VideoCapture(index, cv2.CAP_ANY)
+            if cap.isOpened():
+                available_cameras.append(index)
+                cap.release()
+        return available_cameras
 
 if __name__ == "__main__":
     assembly = RoboticArmAssembly()
+    #assembly.cameraCheck("wedge")
     assembly.start_robotic_assembly()
+    #assembly.find_available_cameras()
