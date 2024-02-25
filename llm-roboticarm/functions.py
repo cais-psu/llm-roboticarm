@@ -18,37 +18,58 @@ class RoboticArmFunctions:
             all_configs.update(config_data)
         return all_configs
 
-    def sorting(self, product_name: str) -> dict:
+    def sorting(self, robot_name: str) -> dict:
         """
         This is a sorting function. When executed the product is sorted.
         The function returns whether the operation was successful.
 
-        :param product_name: name of the product to be sorted
+        :param robot_name: name of the robot that sorts the product
         """
-        print(f"Sorting product {product_name}")
+        print(f"Sorting product {robot_name}")
         
         result = {
             "func_type": "roboticarm_process",
-            "product_name": product_name,
+            "robot_name": robot_name,
             "status": "completed",
-            "content": f"Sorting {product_name} is successfully completed." 
+            "content": f"Sorting by {robot_name} is successfully completed." 
         }
         return result
     
-    def assembly(self, product_name: str) -> dict:
+    def assembly(self, robot_name: str) -> dict:
         """
-        This is an assembly function. When executed the product is assemblied.
+        This is an assembly function. When executed, the product is assemblied.
         The function returns whether the operation was successful.
 
-        :param product_name: name of the product to be assemblied
+        :param robot_name: name of the robot that assembles the product
         """
         assembly = robotic_arm_assembly.RoboticArmAssembly()
-        assembly.robotic_assembly()
+        step_completed, message = assembly.start_robotic_assembly()
 
         result = {
             "func_type": "roboticarm_process",
-            "product_name": product_name,
-            "status": "completed",
-            "content": f"Assembly of {product_name} is successfully completed." 
+            "robot_name": robot_name,
+            "step_completed": step_completed,
+            "content": message 
         }
-        return result
+            
+        return result   
+    
+    def resume_assembly(self, robot_name: str, step_completed: str) -> dict:
+        """
+        This is a resuming assembly function. When executed, the product will do assembly from the point where it left off.
+        The function returns whether the operation was successful.
+
+        :param robot_name: name of the robot that resumes the assembly of the product
+        :param step_completed: name of the assembly step that has completed
+        """
+        assembly = robotic_arm_assembly.RoboticArmAssembly()
+        step_completed, message = assembly.resume_assembly_from_last_step(step_completed)
+
+        result = {
+            "func_type": "roboticarm_process",
+            "robot_name": robot_name,
+            "step_completed": step_completed,
+            "content": message 
+        }
+        
+        return result    

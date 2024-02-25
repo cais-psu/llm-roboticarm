@@ -116,6 +116,7 @@ class LlmAgent:
         model: str,
         with_functions: bool = True,
         temperature: float = 0.0,
+        function_call: dict = {}
     ) -> openai.openai_object.OpenAIObject:
         response = None
 
@@ -125,7 +126,15 @@ class LlmAgent:
 
         while not response:
             try:
-                if with_functions:
+                if function_call:
+                    response = openai.chat.completions.create(
+                        model=model,
+                        messages=msgs,
+                        functions=self.function_info,
+                        temperature=temperature,
+                        function_call=function_call,
+                    )                    
+                elif with_functions:
                     response = openai.chat.completions.create(
                         model=model,
                         messages=msgs,
@@ -238,7 +247,7 @@ class LlmAgent:
 
         # Manufacturing process is executed and completed from the previous chat function
         if func_res['func_type'] == "roboticarm_process":
-            if func_res['status'] == "completed":
+            if func_res['step_completed'] == "completed":
                 # get response from LLM
                 func_msg = {
                     "role": "function",
@@ -248,10 +257,17 @@ class LlmAgent:
                 msgs.append(func_msg)
                 self.logger.info(f"Msgs: {msgs}")
                 
-                function_call = {"name": f"{func_res['product_name']}"}          
-            elif func_res['status'] == "failed":
-                #TODO: make logic when it is failed
-                pass
+                function_call = {"name": f"user"}
+            else:
+                func_msg = {
+                    "role": "function",
+                    "name": "Robot1",
+                    "content": f"{func_res['content']}, step_completed: {func_res['step_completed']}",
+                }
+                msgs.append(func_msg)
+                self.logger.info(f"Msgs: {msgs}")
+                
+                function_call = {"name": f"user"}
 
         response = self.__get_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
         self.logger.info(response)
@@ -265,8 +281,14 @@ class LlmAgent:
             self.executables[func](**args)
             self.logger.info(f"Function call: {func}; Arguments: {args}")
 
-            #Clear the completed task
-            self.inbox.pop(0)
+            if {func_res['step_completed']} == "completed":
+                #Clear the completed task
+                self.inbox.pop(0)
+            else:
+                self.inbox.pop(0)
+                self.inbox.append([(func_res['robot_name'], f"{func_res['content']}, step_completed: {func_res['step_completed']}")])
+                return "failed"
+                
         except KeyError:
             if response.choices[0].finish_reason == "stop":
                 if 'completed' in response.choices[0].content:
@@ -276,22 +298,31 @@ class LlmAgent:
                     self.logger.info("No further function call to execute")
         except Exception as e:
             self.logger.error(f"An error occurred during function execution: {e}")  
-
+        
+            
+    def report_error(self, message):
+        pass
+        
     def run(self, peers: list[LlmAgent]):
         if self.inbox:
             for new in self.inbox:
                 for sender, content in new:
-                    task_identifier = robot_utils.get_task_identifier(sender, content)
-                    if self.task_states.get(task_identifier) not in ['running', 'completed']:
-                        self.logger.info(f"Running agent: {self.name}")
-                        self.setup_peer_message_functions(peers)
-                        self.task_states[task_identifier] = 'running'
-                        msg_history_as_text = self._msg_history_to_prompt(new)
-                        func_res, msgs = self.chat(msg_history_as_text)
-                        if 'func_type' in func_res:
-                            self.chat_after_function_execution(func_res, msgs)
-                        self.logger.info(f"Run for agent {self.name} done.")
-                        self.task_states[task_identifier] = 'completed'
+                    if sender == 'user':
+                        task_identifier = robot_utils.get_task_identifier(sender, content)
+                        if self.task_states.get(task_identifier) not in ['running', 'completed']:
+                            self.logger.info(f"Running agent: {self.name}")
+                            self.setup_peer_message_functions(peers)
+                            self.task_states[task_identifier] = 'running'
+                            msg_history_as_text = self._msg_history_to_prompt(new)
+                            func_res, msgs = self.chat(msg_history_as_text)
+                            if 'func_type' in func_res:
+                                status = self.chat_after_function_execution(func_res, msgs)
+                                if status == "failed":
+                                    self.task_states[task_identifier] = 'failed'
+                                else:
+                                    self.task_states[task_identifier] = 'completed'        
+                            self.logger.info(f"Run for agent {self.name} done.")
+                            
         else:
             pass
 
@@ -345,6 +376,21 @@ class User:
                     #print(command)
                     for peer in peers:
                         if peer.name == "Robot1":
-                            peer.inbox.append([("user", new)])
+                            if len(peer.inbox) != 0:
+                                peer.inbox[-1].extend([("user", new)])
+                                '''
+                                if peer.inbox[-1][-1][0] == 'Robot1':
+                                    existing_content = peer.inbox[-1][-1][1]
+                                    print(existing_content)
+                                    new_content = existing_content + "; " + new
+                                    print(new_content)
+                                    peer.inbox[-1][-1] = ("user", new_content)
+                                    print(peer.inbox)
+                                '''
+                            else:
+                                peer.inbox.append([("user", new)])
+                            
+                            print(peer.inbox)
+                                
                             self.command.pop(0)
                             self.task_states.pop(command_identifier, None)

@@ -17,6 +17,7 @@ from xarmlib import version
 from xarmlib.wrapper import XArmAPI
 
 import pygame
+import openai_agent
 #######################################################
 
 class RoboticArmAssembly:
@@ -24,8 +25,8 @@ class RoboticArmAssembly:
         self.arm = XArmAPI('192.168.1.207', baud_checkset=False)
         self.variables = {}
         self.params = {
-            'speed': 100,
-            'acc': 2000,
+            'speed': 150,
+            'acc': 10000,
             'angle_speed': 20,
             'angle_acc': 500,
             'events': {},
@@ -33,7 +34,7 @@ class RoboticArmAssembly:
             'callback_in_thread': True,
             'quit': False
         }
-        #self.setup_callbacks()
+        self.step_completed = None
 
     def cameraCheck(self):
         path = 'C:/Users/jongh/projects/llm-roboticarm/vision_data/check.pt'
@@ -64,96 +65,103 @@ class RoboticArmAssembly:
             return
 
     def objectPlace(self, objectType):
-        path = 'C:/Users/jongh/projects/llm-roboticarm/vision_data/{}.pt'.format(objectType)
-        # model = None
-        print(objectType)
-        print(path)
-        
-        model = torch.hub.load('ultralytics/yolov5', 'custom', path, force_reload=False)
-
-        cap = cv2.VideoCapture(0)
-        temp = 0
-        temp2 = 0
-        if objectType=='housing':
-            objectType = 'housing-flat'
-        while True:
-            ret, frame = cap.read()
-            frame = cv2.resize(frame, (640, 480))
-            frame1 = frame
-            if objectType == 'housing-flat':
-                frame = frame[0:480, 0:240] # housing
-            elif objectType == 'wedge':
-                frame = frame[0:480, 240:440]
-            elif objectType == 'spring':
-                frame = frame[0:480, 440:640]
-            else:
-                frame = frame[0:480, 440:640]
-            mask = frame
-            mask1 = frame
-            mask2 = frame
-            results = model(frame)
-            coords_plus = results.pandas().xyxy[0]
-            if coords_plus.empty:
-                print("No object found")
-                exit()
-            if not coords_plus.empty and temp == 0:
-                for index, row in coords_plus.iterrows():
-                    name = row['name']
-
-                    if name == objectType:
-                        x1 = int(row['xmin'])
-                        y1 = int(row['ymin'])
-                        x2 = int(row['xmax'])
-                        y2 = int(row['ymax'])
-                        temp = 1
-                        masky = y2 + y1 - 2
-                        masky = masky / 2
-                        masky = int(masky)
-
-            if temp == 1:
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                mask = mask[y1 - 2:y2, x1 - 3:x2 + 3]
-                mask1 = mask1[y1 - 2:masky, x1 - 3:x2 + 3]
-                mask2 = mask2[masky:y2, x1 - 3:x2 + 3]
-            elif temp == 2:
-                cv2.line(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                cv2.line(frame, (x1, y2), (x2, y1), (0, 0, 255), 2)
-                cv2.line(frame1, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                cv2.line(frame1, (x1, y2), (x2, y1), (0, 0, 255), 2)
-            if objectType == 'wedge':
-                cv2.imshow("mask", mask)
-                cv2.imshow("mask1", mask1)
-                cv2.imshow("mask2", mask2)
-            cv2.imshow("FRAME", frame)
-
-            if cv2.waitKey(1) & 0xFF == 27:
-                break
-            if temp2 == 0 and temp == 2:
-                # errorDict[objectType] += [[x1, y1, x2, y2]]
-                # print(errorDict)
-                x = (x1 +x2 ) /2
-                y = (y1 +y2 ) /2
-                pygame.init()
-                housing_error_file = r'C:\Users\ade5221\Downloads\housing_error_new_trim.wav'
-                pygame.mixer.music.load(housing_error_file)
-                pygame.mixer.music.play()
-
-                top = tk.Tk()
-                top.title('Error')
-                labelString = "{} error centered at (" + str(x) + ',' + str(y) + ')'.format(objectType)
-                label_text = tk.Label(top, text=labelString)
-                frame1_forPIL = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
-                newImage = Image.fromarray(frame1_forPIL)
-                add = ImageTk.PhotoImage(image=newImage)
-                frame1_label = tk.Label(top, image=add)
-                label_text.pack()
-                frame1_label.pack()
-                top.mainloop()
-                # Code here will only execute after the GUI window is closed
-                exit()
-            elif temp2 == 0 and temp != 2:
-                return x1, y1, x2, y2, mask, mask1, mask2
+        try:
+            path = 'C:/Users/jongh/projects/llm-roboticarm/vision_data/{}.pt'.format(objectType)
+            # model = None
+            print(objectType)
+            print(path)
             
+            model = torch.hub.load('ultralytics/yolov5', 'custom', path, force_reload=False)
+
+            cap = cv2.VideoCapture(0)
+            temp = 0
+            temp2 = 0
+            if objectType=='housing':
+                objectType = 'housing-flat'
+            while True:
+                ret, frame = cap.read()
+                frame = cv2.resize(frame, (640, 480))
+                frame1 = frame
+                if objectType == 'housing-flat':
+                    frame = frame[0:480, 0:240] # housing
+                elif objectType == 'wedge':
+                    frame = frame[0:480, 240:440]
+                elif objectType == 'spring':
+                    frame = frame[0:480, 440:640]
+                else:
+                    frame = frame[0:480, 440:640]
+                mask = frame
+                mask1 = frame
+                mask2 = frame
+                results = model(frame)
+                coords_plus = results.pandas().xyxy[0]
+                if coords_plus.empty:
+                    print(f"No object found: {objectType}")
+                    exit()
+                if not coords_plus.empty and temp == 0:
+                    for index, row in coords_plus.iterrows():
+                        name = row['name']
+
+                        if name == objectType:
+                            x1 = int(row['xmin'])
+                            y1 = int(row['ymin'])
+                            x2 = int(row['xmax'])
+                            y2 = int(row['ymax'])
+                            temp = 1
+                            masky = y2 + y1 - 2
+                            masky = masky / 2
+                            masky = int(masky)
+
+                if temp == 1:
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                    mask = mask[y1 - 2:y2, x1 - 3:x2 + 3]
+                    mask1 = mask1[y1 - 2:masky, x1 - 3:x2 + 3]
+                    mask2 = mask2[masky:y2, x1 - 3:x2 + 3]
+                elif temp == 2:
+                    cv2.line(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                    cv2.line(frame, (x1, y2), (x2, y1), (0, 0, 255), 2)
+                    cv2.line(frame1, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                    cv2.line(frame1, (x1, y2), (x2, y1), (0, 0, 255), 2)
+                if objectType == 'wedge':
+                    cv2.imshow("mask", mask)
+                    cv2.imshow("mask1", mask1)
+                    cv2.imshow("mask2", mask2)
+                cv2.imshow("FRAME", frame)
+
+                if cv2.waitKey(1) & 0xFF == 27:
+                    break
+                if temp2 == 0 and temp == 2:
+                    # errorDict[objectType] += [[x1, y1, x2, y2]]
+                    # print(errorDict)
+                    x = (x1 +x2 ) /2
+                    y = (y1 +y2 ) /2
+                    pygame.init()
+                    housing_error_file = r'C:\Users\ade5221\Downloads\housing_error_new_trim.wav'
+                    pygame.mixer.music.load(housing_error_file)
+                    pygame.mixer.music.play()
+
+                    top = tk.Tk()
+                    top.title('Error')
+                    labelString = "{} error centered at (" + str(x) + ',' + str(y) + ')'.format(objectType)
+                    label_text = tk.Label(top, text=labelString)
+                    frame1_forPIL = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
+                    newImage = Image.fromarray(frame1_forPIL)
+                    add = ImageTk.PhotoImage(image=newImage)
+                    frame1_label = tk.Label(top, image=add)
+                    label_text.pack()
+                    frame1_label.pack()
+                    top.mainloop()
+                    # Code here will only execute after the GUI window is closed
+                    exit()
+                elif temp2 == 0 and temp != 2:
+                    return x1, y1, x2, y2, mask, mask1, mask2
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        finally:
+            # Clean up: Release the capture object and close any OpenCV windows
+            cap.release()
+            cv2.destroyAllWindows()
+                  
     def distinguish_orientation(self, image):
         # Preprocess the image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -471,31 +479,101 @@ class RoboticArmAssembly:
                 self.params['quit'] = True
                 self.pprint('set_position, code={}'.format(code))
 
-    def cleanup(self):
-        # Stop any background threads or asynchronous operations
-        self.params['quit'] = True  # Assuming this flag stops threads started by this application
-
-        # Release the robotic arm connection
-        if self.arm.is_connected():
-            self.arm.disconnect()
-
-        # Close any OpenCV camera captures
-        if hasattr(self, 'cap') and self.cap.isOpened():
-            self.cap.release()
-        cv2.destroyAllWindows()
-
-        # Close any Tkinter windows if they're open
-        for window in tk.Tk().tk_windowManager():
-            window.destroy()
-
-        # Stop any pygame audio playback
-        pygame.mixer.music.stop()
-        pygame.quit()
-
-        # Additional cleanup actions as needed
-        print("Cleanup complete. Resources have been released.")
+    def perform_housing_step(self):
+        try:
+            self.x1h, self.y1h, self.x2h, self.y2h, a, b, c = self.objectPlace('housing')
+            self.xhouse = int(self.y1h + self.y2h)
+            self.xhouse = self.xhouse * 5 / 7
+            self.xhouse = self.xhouse / 2 + 250
+            self.yhouse = int(self.x1h + self.x2h)
+            self.yhouse = self.yhouse * 5 / 7
+            self.yhouse = self.yhouse / 2 - 363
+            self.housing_movement()
+            self.step_completed = "housing"
+            message = "Housing step completed successfully."
+        except Exception as e:
+            # If an error occurs, set the step to incomplete and return an error message
+            message = f"Error during housing step: {e}"             
+        return self.step_completed, message
         
-    def robotic_assembly(self):
+    def perform_wedge_step(self):
+        try:
+            self.x1w, self.y1w, self.x2w, self.y2w, mask, mask1, mask2 = self.objectPlace('wedge')
+            self.xwedge = int(self.y1w + self.y2w)
+            self.xwedge = self.xwedge * 5 / 7
+            self.xwedge = self.xwedge / 2 + 250
+            self.ywedge = int(self.x1w + self.x2w + 480)
+            self.ywedge = self.ywedge * 5 / 7
+            self.ywedge = self.ywedge / 2 - 363
+            self.wedge_movement()
+            self.step_completed = "wedge"
+            message = "Wedging step completed successfully."
+        except Exception as e:
+            # If an error occurs, set the step to incomplete and return an error message
+            message = f"Error during wedge step: {e}"             
+        return message            
+            
+    def perform_spring_step(self):
+        try:
+            self.x1s, self.y1s, self.x2s, self.y2s, a, b, c = self.objectPlace('spring')
+            self.xspring = int(self.y1s + self.y2s)
+            self.xspring = self.xspring * 5 / 7
+            self.xspring = self.xspring / 2 + 250
+            self.yspring = int(self.x1s + self.x2s + 880)
+            self.yspring = self.yspring * 5 / 7
+            self.yspring = self.yspring / 2 - 363
+            self.spring_movement()        
+            self.step_completed = "spring"
+            message = "Spring step completed successfully."
+        except Exception as e:
+            # If an error occurs, set the step to incomplete and return an error message
+            message = f"Error during spring step: {e}"             
+        return message              
+
+    def perform_cap_step(self):
+        try:
+            self.x1c, self.y1c, self.x2c, self.y2c, a, b, c= self.objectPlace('cap')
+            self.xcap = int(self.y1c + self.y2c)
+            self.xcap = self.xcap * 5 / 7
+            self.xcap = self.xcap / 2 + 250
+            self.ycap = int(self.x1c + self.x2c + 880)
+            self.ycap = self.ycap * 5 / 7
+            self.ycap = self.ycap / 2 - 363
+            self.cap_movement()
+            self.step_completed = "completed"
+            message = "All steps for the assembly are successfully completed."
+        except Exception as e:
+            # If an error occurs, set the step to incomplete and return an error message
+            message = f"Error during cap step: {e}"             
+        return message              
+        
+    def resume_assembly_from_last_step(self, step_completed):
+        # Define the order of assembly steps
+        assembly_steps = ["housing", "wedge", "spring", "cap"]
+        
+        # Find the index of the last completed step; if none are completed, start from the beginning
+        last_completed_index = assembly_steps.index(step_completed) if step_completed in assembly_steps else -1
+        
+        # Resume assembly from the next step after the last completed one
+        for step in assembly_steps[last_completed_index + 1:]:
+            try:
+                getattr(self, f"perform_{step}_step")()
+            except :
+                return self.step_completed, f"Error during {step} step."
+        
+        # If all steps complete without errors, return all steps as completed and a success message
+        return self.step_completed, "All steps for the assembly are successfully completed."
+
+    def start_robotic_assembly(self):
+        for step in ["housing", "wedge", "spring", "cap"]:
+            try:
+                message = getattr(self, f"perform_{step}_step")()
+            except:
+                return self.step_completed, f"Error during {step} step."
+        
+        return self.step_completed, "All steps for the assembly are successfully completed."
+    
+        '''
         self.pprint('xArm-Python-SDK Version:{}'.format(version.__version__))        
         self.arm.register_error_warn_changed_callback(self.error_warn_change_callback)
         self.arm.clean_warn()
@@ -504,7 +582,6 @@ class RoboticArmAssembly:
         self.arm.set_mode(0)
         self.arm.set_state(0)
         time.sleep(1)
-
         self.arm.register_state_changed_callback(self.state_changed_callback)
 
         # Register counter value changed callback
@@ -523,84 +600,34 @@ class RoboticArmAssembly:
         for i in range(int(10)):
             if self.params['quit']:
                 break
-
-        movement = 1
-        if movement == 1:
-            self.x1h, self.y1h, self.x2h, self.y2h, a, b, c = self.objectPlace('housing')
-            self.x1c, self.y1c, self.x2c, self.y2c, a, b, c= self.objectPlace('cap')
-            self.x1s, self.y1s, self.x2s, self.y2s, a, b, c = self.objectPlace('spring')
-            self.x1w, self.y1w, self.x2w, self.y2w, mask, mask1, mask2 = self.objectPlace('wedge')
-
-            print("Top left: ({},{}) Bottom right: ({},{})".format(self.x1w, self.y1w, self.x2w, self.y2w))
-
-            print(self.x1w, self.y1w, self.x2w, self.y2w)
-
-            wedgeTest = self.distinguish_orientation(mask)
-            wedgeTest1 = self.distinguish_orientation(mask1)
-            wedgeTest2 = self.distinguish_orientation(mask2)
-            print(wedgeTest1)
-            print(wedgeTest2)
-            if wedgeTest <= 0.2 and wedgeTest >= 0.12:
-                print("Ridged")
-            elif wedgeTest >= 0.2:
-                print("Smooth")
-
-            # x=(10/13)(ync)+250
-            # y=(5/7)(xnc)-363
-            self.xhouse = int(self.y1h + self.y2h)
-            self.xhouse = self.xhouse * 5 / 7
-            self.xhouse = self.xhouse / 2 + 250
-
-            self.yhouse = int(self.x1h + self.x2h)
-            self.yhouse = self.yhouse * 5 / 7
-            self.yhouse = self.yhouse / 2 - 363
-
-            self.xwedge = int(self.y1w + self.y2w)
-            self.xwedge = self.xwedge * 5 / 7
-            self.xwedge = self.xwedge / 2 + 250
-
-            self.ywedge = int(self.x1w + self.x2w + 480)
-            self.ywedge = self.ywedge * 5 / 7
-            self.ywedge = self.ywedge / 2 - 363
-
-            self.xspring = int(self.y1s + self.y2s)
-            self.xspring = self.xspring * 5 / 7
-            self.xspring = self.xspring / 2 + 250
-
-            self.yspring = int(self.x1s + self.x2s + 880)
-            self.yspring = self.yspring * 5 / 7
-            self.yspring = self.yspring / 2 - 363
-
-            self.xcap = int(self.y1c + self.y2c)
-            self.xcap = self.xcap * 5 / 7
-            self.xcap = self.xcap / 2 + 250
-
-            self.ycap = int(self.x1c + self.x2c + 880)
-            self.ycap = self.ycap * 5 / 7
-            self.ycap = self.ycap / 2 - 363
-
-            self.housing_movement()
-            self.wedge_movement()
-
-            # cameraCheck()
-            # blank
-
-            self.spring_movement()
-
-            self.cap_movement()
-            self.cap_movement()
-            self.cap_movement()
-
+        '''
+        #movement = 1
+        #if movement == 1:
+           
+        #print("Top left: ({},{}) Bottom right: ({},{})".format(self.x1w, self.y1w, self.x2w, self.y2w))
+        #print(self.x1w, self.y1w, self.x2w, self.y2w)
+        '''
+        wedgeTest = self.distinguish_orientation(mask)
+        wedgeTest1 = self.distinguish_orientation(mask1)
+        wedgeTest2 = self.distinguish_orientation(mask2)
+        print(wedgeTest1)
+        print(wedgeTest2)
+        if wedgeTest <= 0.2 and wedgeTest >= 0.12:
+            print("Ridged")
+        elif wedgeTest >= 0.2:
+            print("Smooth")
+        '''
+        # cameraCheck()
+        # blank
+        '''
         # release all event
         if hasattr(self.arm, 'release_count_changed_callback'):
             self.arm.release_count_changed_callback(count_changed_callback)
         self.arm.release_error_warn_changed_callback(self.state_changed_callback)
         self.arm.release_state_changed_callback(self.state_changed_callback)
         self.arm.release_connect_changed_callback(self.error_warn_change_callback)
+        '''
 
 if __name__ == "__main__":
     assembly = RoboticArmAssembly()
-    try:
-        assembly.robotic_assembly()
-    finally:
-        assembly.cleanup()
+    assembly.start_robotic_assembly()
