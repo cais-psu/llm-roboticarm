@@ -17,7 +17,7 @@ import openai
 import audio_utils
 
 from function_analyzer import FunctionAnalyzer
-from prompts import PROMPT_MAS_AGENT, BASE_INSTRUCTIONS
+from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS
 
 # Create a logger
 global_logger = logging.getLogger(__name__)
@@ -78,12 +78,12 @@ class LlmAgent:
             self.executables = {f.__name__: f for f in functions_}
         if self.function_info:
             if instructions:
-                self.instructions = PROMPT_MAS_AGENT + BASE_INSTRUCTIONS + instructions
+                self.instructions = PROMPT_ROBOT_AGENT + BASE_INSTRUCTIONS + instructions
             else:
-                self.instructions = PROMPT_MAS_AGENT + BASE_INSTRUCTIONS
+                self.instructions = PROMPT_ROBOT_AGENT + BASE_INSTRUCTIONS
             self.logger.info(f"Using function info:\n{json.dumps(self.function_info, indent=4)}")
         else:
-            self.instructions = PROMPT_MAS_AGENT
+            self.instructions = PROMPT_ROBOT_AGENT
         
         self.logger.info(
             f"Initialized with instructions:\n{self.instructions}"
@@ -371,26 +371,17 @@ class User:
             for new in self.command:
                 command_identifier = robot_utils.get_command_identifier(new)       
                 if self.task_states.get(command_identifier) not in ['running', 'completed']:
-                    #self.logger.info(f"Running agent: {self.name}")
                     self.task_states[command_identifier] = 'running'
-                    #print(command)
                     for peer in peers:
                         if peer.name == "Robot1":
                             if len(peer.inbox) != 0:
-                                peer.inbox[-1].extend([("user", new)])
-                                '''
+                                #peer.inbox[-1].extend([("user", new)])
                                 if peer.inbox[-1][-1][0] == 'Robot1':
                                     existing_content = peer.inbox[-1][-1][1]
-                                    print(existing_content)
                                     new_content = existing_content + "; " + new
-                                    print(new_content)
                                     peer.inbox[-1][-1] = ("user", new_content)
-                                    print(peer.inbox)
-                                '''
                             else:
                                 peer.inbox.append([("user", new)])
-                            
                             print(peer.inbox)
-                                
                             self.command.pop(0)
                             self.task_states.pop(command_identifier, None)

@@ -66,13 +66,14 @@ class RoboticArmAssembly:
 
     def objectPlace(self, objectType):
         try:
-            path = 'C:/Users/jongh/projects/llm-roboticarm/vision_data/{}.pt'.format(objectType)
+            path = 'llm-roboticarm/vision_data/{}.pt'.format(objectType)
             # model = None
             print(objectType)
             print(path)
             
-            model = torch.hub.load('ultralytics/yolov5', 'custom', path, force_reload=False)
-
+            model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
+            #model = torch.hub.load('ultralytics/yolov5', 'custom', path, force_reload=False)
+            #model = torch.hub.load('ultralytics/yolov5', 'custom', path, force_reload=False)
             cap = cv2.VideoCapture(0)
             temp = 0
             temp2 = 0
@@ -482,151 +483,90 @@ class RoboticArmAssembly:
     def perform_housing_step(self):
         try:
             self.x1h, self.y1h, self.x2h, self.y2h, a, b, c = self.objectPlace('housing')
-            self.xhouse = int(self.y1h + self.y2h)
-            self.xhouse = self.xhouse * 5 / 7
-            self.xhouse = self.xhouse / 2 + 250
-            self.yhouse = int(self.x1h + self.x2h)
-            self.yhouse = self.yhouse * 5 / 7
-            self.yhouse = self.yhouse / 2 - 363
+            self.xhouse = (int(self.y1h + self.y2h) * 5 / 7) / 2 + 250
+            self.yhouse = (int(self.x1h + self.x2h) * 5 / 7) / 2 - 363
+        except:
+            message = f"Error: the housing object was not detected"
+            return message
+
+        try:
             self.housing_movement()
-            self.step_completed = "housing"
-            message = "Housing step completed successfully."
         except Exception as e:
-            # If an error occurs, set the step to incomplete and return an error message
-            message = f"Error during housing step: {e}"             
-        return self.step_completed, message
-        
+            message = f"Error {e}: there was an error during the housing movement"
+            return message
+                    
+        self.step_completed = "housing"
+        message = "Housing step completed successfully."
+        return message          
+
     def perform_wedge_step(self):
         try:
             self.x1w, self.y1w, self.x2w, self.y2w, mask, mask1, mask2 = self.objectPlace('wedge')
-            self.xwedge = int(self.y1w + self.y2w)
-            self.xwedge = self.xwedge * 5 / 7
-            self.xwedge = self.xwedge / 2 + 250
-            self.ywedge = int(self.x1w + self.x2w + 480)
-            self.ywedge = self.ywedge * 5 / 7
-            self.ywedge = self.ywedge / 2 - 363
+            self.xwedge = ((int(self.y1w + self.y2w) * 5 / 7) / 2) + 250
+            self.ywedge = ((int(self.x1w + self.x2w + 480) * 5 / 7) / 2) - 363
+        except:
+            return f"Error: during wedge object placement detection"
+
+        try:
             self.wedge_movement()
-            self.step_completed = "wedge"
-            message = "Wedging step completed successfully."
         except Exception as e:
-            # If an error occurs, set the step to incomplete and return an error message
-            message = f"Error during wedge step: {e}"             
-        return message            
-            
+            return f"Error {e} during wedge movement"
+                        
+        self.step_completed = "wedge"
+        return "Wedging step completed successfully."
+                
     def perform_spring_step(self):
         try:
             self.x1s, self.y1s, self.x2s, self.y2s, a, b, c = self.objectPlace('spring')
-            self.xspring = int(self.y1s + self.y2s)
-            self.xspring = self.xspring * 5 / 7
-            self.xspring = self.xspring / 2 + 250
-            self.yspring = int(self.x1s + self.x2s + 880)
-            self.yspring = self.yspring * 5 / 7
-            self.yspring = self.yspring / 2 - 363
-            self.spring_movement()        
-            self.step_completed = "spring"
-            message = "Spring step completed successfully."
+            self.xspring = ((int(self.y1s + self.y2s) * 5 / 7) / 2) + 250
+            self.yspring = ((int(self.x1s + self.x2s + 880) * 5 / 7) / 2) - 363
+        except:
+            return f"Error: during spring object placement detection"
+
+        try:
+            self.spring_movement()
         except Exception as e:
-            # If an error occurs, set the step to incomplete and return an error message
-            message = f"Error during spring step: {e}"             
-        return message              
+            return f"Error {e} during spring movement"
+                        
+        self.step_completed = "spring"
+        return "Spring step completed successfully."
 
     def perform_cap_step(self):
         try:
-            self.x1c, self.y1c, self.x2c, self.y2c, a, b, c= self.objectPlace('cap')
-            self.xcap = int(self.y1c + self.y2c)
-            self.xcap = self.xcap * 5 / 7
-            self.xcap = self.xcap / 2 + 250
-            self.ycap = int(self.x1c + self.x2c + 880)
-            self.ycap = self.ycap * 5 / 7
-            self.ycap = self.ycap / 2 - 363
+            self.x1c, self.y1c, self.x2c, self.y2c, a, b, c = self.objectPlace('cap')
+            self.xcap = ((int(self.y1c + self.y2c) * 5 / 7) / 2) + 250
+            self.ycap = ((int(self.x1c + self.x2c + 880) * 5 / 7) / 2) - 363
+        except:
+            return f"Error: {e} during cap object placement detection"
+
+        try:
             self.cap_movement()
-            self.step_completed = "completed"
-            message = "All steps for the assembly are successfully completed."
         except Exception as e:
-            # If an error occurs, set the step to incomplete and return an error message
-            message = f"Error during cap step: {e}"             
-        return message              
+            return f"Error {e} during cap movement"
+                        
+        self.step_completed = "completed"
+        return "Cap step completed successfully."
         
     def resume_assembly_from_last_step(self, step_completed):
         # Define the order of assembly steps
         assembly_steps = ["housing", "wedge", "spring", "cap"]
-        
-        # Find the index of the last completed step; if none are completed, start from the beginning
         last_completed_index = assembly_steps.index(step_completed) if step_completed in assembly_steps else -1
         
-        # Resume assembly from the next step after the last completed one
         for step in assembly_steps[last_completed_index + 1:]:
-            try:
-                getattr(self, f"perform_{step}_step")()
-            except :
-                return self.step_completed, f"Error during {step} step."
+            message = getattr(self, f"perform_{step}_step")()
+            if 'error' in message.lower():
+                return self.step_completed, message
         
-        # If all steps complete without errors, return all steps as completed and a success message
+        self.step_completed = "completed"
         return self.step_completed, "All steps for the assembly are successfully completed."
 
     def start_robotic_assembly(self):
         for step in ["housing", "wedge", "spring", "cap"]:
-            try:
-                message = getattr(self, f"perform_{step}_step")()
-            except:
-                return self.step_completed, f"Error during {step} step."
+            message = getattr(self, f"perform_{step}_step")()
+            if 'error' in message.lower():
+                return self.step_completed, message
         
-        return self.step_completed, "All steps for the assembly are successfully completed."
-    
-        '''
-        self.pprint('xArm-Python-SDK Version:{}'.format(version.__version__))        
-        self.arm.register_error_warn_changed_callback(self.error_warn_change_callback)
-        self.arm.clean_warn()
-        self.arm.clean_error()
-        self.arm.motion_enable(True)
-        self.arm.set_mode(0)
-        self.arm.set_state(0)
-        time.sleep(1)
-        self.arm.register_state_changed_callback(self.state_changed_callback)
-
-        # Register counter value changed callback
-        if hasattr(self.arm, 'register_count_changed_callback'):
-            def count_changed_callback(data):
-                if not self.params['quit']:
-                    self.pprint('counter val: {}'.format(data['count']))
-            self.arm.register_count_changed_callback(count_changed_callback)
-
-        self.arm.register_connect_changed_callback(self.connect_changed_callback)
-
-        if not self.params['quit']:
-            self.params['speed'] = 150
-        if not self.params['quit']:
-            self.params['acc'] = 10000
-        for i in range(int(10)):
-            if self.params['quit']:
-                break
-        '''
-        #movement = 1
-        #if movement == 1:
-           
-        #print("Top left: ({},{}) Bottom right: ({},{})".format(self.x1w, self.y1w, self.x2w, self.y2w))
-        #print(self.x1w, self.y1w, self.x2w, self.y2w)
-        '''
-        wedgeTest = self.distinguish_orientation(mask)
-        wedgeTest1 = self.distinguish_orientation(mask1)
-        wedgeTest2 = self.distinguish_orientation(mask2)
-        print(wedgeTest1)
-        print(wedgeTest2)
-        if wedgeTest <= 0.2 and wedgeTest >= 0.12:
-            print("Ridged")
-        elif wedgeTest >= 0.2:
-            print("Smooth")
-        '''
-        # cameraCheck()
-        # blank
-        '''
-        # release all event
-        if hasattr(self.arm, 'release_count_changed_callback'):
-            self.arm.release_count_changed_callback(count_changed_callback)
-        self.arm.release_error_warn_changed_callback(self.state_changed_callback)
-        self.arm.release_state_changed_callback(self.state_changed_callback)
-        self.arm.release_connect_changed_callback(self.error_warn_change_callback)
-        '''
+        return self.step_completed, message
 
 if __name__ == "__main__":
     assembly = RoboticArmAssembly()
