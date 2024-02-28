@@ -33,6 +33,7 @@ def text_to_speech(message):
 
     # Check if the file already exists and delete it
     if os.path.exists(file_path):
+        time.sleep(1)
         os.remove(file_path)    
 
     try:

@@ -246,7 +246,7 @@ class LlmAgent:
             model_ = self.non_function_model
 
         # Manufacturing process is executed and completed from the previous chat function
-        if func_res['func_type'] == "roboticarm_process":
+        if func_res['func_type'] == "assembly_process":
             if func_res['step_completed'] == "completed":
                 # get response from LLM
                 func_msg = {
@@ -268,6 +268,17 @@ class LlmAgent:
                 self.logger.info(f"Msgs: {msgs}")
                 
                 function_call = {"name": f"user"}
+        else:
+            # get response from LLM
+            func_msg = {
+                "role": "function",
+                "name": "Robot1",
+                "content": func_res['content'],
+            }
+            msgs.append(func_msg)
+            self.logger.info(f"Msgs: {msgs}")
+            
+            function_call = {"name": f"user"}
 
         response = self.__get_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
         self.logger.info(response)
@@ -281,12 +292,12 @@ class LlmAgent:
             self.executables[func](**args)
             self.logger.info(f"Function call: {func}; Arguments: {args}")
 
-            if {func_res['step_completed']} == "completed":
+            if {func_res['step_already_completed']} == "completed":
                 #Clear the completed task
                 self.inbox.pop(0)
             else:
                 self.inbox.pop(0)
-                self.inbox.append([(func_res['robot_name'], f"{func_res['content']}, step_completed: {func_res['step_completed']}")])
+                self.inbox.append([(func_res['robot_name'], f"{func_res['content']}, step_already_completed: {func_res['step_already_completed']}")])
                 return "failed"
                 
         except KeyError:
@@ -373,15 +384,17 @@ class User:
                 if self.task_states.get(command_identifier) not in ['running', 'completed']:
                     self.task_states[command_identifier] = 'running'
                     for peer in peers:
-                        if peer.name == "Robot1":
                             if len(peer.inbox) != 0:
-                                #peer.inbox[-1].extend([("user", new)])
-                                if peer.inbox[-1][-1][0] == 'Robot1':
+                                if peer.inbox[-1][-1][0] != 'user':
                                     existing_content = peer.inbox[-1][-1][1]
                                     new_content = existing_content + "; " + new
                                     peer.inbox[-1][-1] = ("user", new_content)
+                                else:
+                                    peer.inbox.pop(0)
+                                    peer.inbox.append([("user", new)])
                             else:
                                 peer.inbox.append([("user", new)])
                             print(peer.inbox)
                             self.command.pop(0)
                             self.task_states.pop(command_identifier, None)
+                            

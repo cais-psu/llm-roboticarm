@@ -33,7 +33,7 @@ class RoboticArmAssembly:
             'callback_in_thread': True,
             'quit': False
         }
-        self.step_completed = None
+        self.step_already_completed = None
 
     def cameraCheck(self, assembly_step):
         path = 'llm-roboticarm/vision_data/check.pt'
@@ -74,7 +74,7 @@ class RoboticArmAssembly:
             print(path)
             
             model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-            cap = cv2.VideoCapture(1)
+            cap = cv2.VideoCapture(0)
             temp = 0
             temp2 = 0
             if objectType=='housing':
@@ -495,7 +495,7 @@ class RoboticArmAssembly:
             message = f"Error {e}: there was an error during the housing movement"
             return message
                     
-        self.step_completed = "housing"
+        self.step_already_completed = "housing"
         message = "Housing step completed successfully."
         return message          
 
@@ -517,7 +517,7 @@ class RoboticArmAssembly:
         except:
             return f"Error: wedge object placement is not done correctly."
     
-        self.step_completed = "wedge"
+        self.step_already_completed = "wedge"
         
         return "Wedging step completed successfully."
                 
@@ -534,7 +534,7 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during spring movement"
                         
-        self.step_completed = "spring"
+        self.step_already_completed = "spring"
         return "Spring step completed successfully."
 
     def perform_cap_step(self):
@@ -550,29 +550,29 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during cap movement"
                         
-        self.step_completed = "completed"
+        self.step_already_completed = "completed"
         return "Cap step completed successfully."
         
-    def resume_assembly_from_last_step(self, step_completed):
+    def resume_assembly_from_last_step(self, step_already_completed):
         # Define the order of assembly steps
         assembly_steps = ["housing", "wedge", "spring", "cap"]
-        last_completed_index = assembly_steps.index(step_completed) if step_completed in assembly_steps else -1
+        last_completed_index = assembly_steps.index(step_already_completed) if step_already_completed in assembly_steps else -1
         
         for step in assembly_steps[last_completed_index + 1:]:
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
-                return self.step_completed, message
+                return self.step_already_completed, message
         
-        self.step_completed = "completed"
-        return self.step_completed, "All steps for the assembly are successfully completed."
+        self.step_already_completed = "completed"
+        return self.step_already_completed, "All steps for the assembly are successfully completed."
 
     def start_robotic_assembly(self):
         for step in ["housing", "wedge", "spring", "cap"]:
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
-                return self.step_completed, message
+                return self.step_already_completed, message
         
-        return self.step_completed, message
+        return self.step_already_completed, message
     
     def find_available_cameras(self):
         """Attempt to open cameras within a range to see which indices are available."""
@@ -584,8 +584,38 @@ class RoboticArmAssembly:
                 cap.release()
         return available_cameras
 
+    def count_and_display_objects(self):
+        path = 'llm-roboticarm/vision_data/housing.pt'
+
+        model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cap.read()
+            frame = cv2.resize(frame, (640, 480))
+            frame = frame[0:480, 0:240]
+            results = model(frame)
+            coords_plus = results.pandas().xyxy[0]
+            housing_object_count = 0
+            for index, row in coords_plus.iterrows():
+                name = row['name']
+                if name == 'housing-flat':
+                    x1 = int(row['xmin'])
+                    y1 = int(row['ymin'])
+                    x2 = int(row['xmax'])
+                    y2 = int(row['ymax'])
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    housing_object_count += 1
+            cv2.putText(frame, f'Housing objects: {housing_object_count}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            cv2.imshow("Housing Objects Detection", frame)
+            # Escape loop on pressing Esc key
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
+        cap.release()
+        cv2.destroyAllWindows()
+
 if __name__ == "__main__":
     assembly = RoboticArmAssembly()
     #assembly.cameraCheck("wedge")
-    assembly.start_robotic_assembly()
+    #assembly.start_robotic_assembly()
     #assembly.find_available_cameras()
+    assembly.count_and_display_objects()
