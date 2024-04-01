@@ -14,7 +14,7 @@ import tkinter as tk
 
 from xarmlib import version
 from xarmlib.wrapper import XArmAPI
-
+import math
 import pygame
 import openai_agent
 #######################################################
@@ -24,7 +24,7 @@ class RoboticArmAssembly:
         self.arm = XArmAPI('192.168.1.207', baud_checkset=False)
         self.variables = {}
         self.params = {
-            'speed': 150,
+            'speed': 180,
             'acc': 10000,
             'angle_speed': 20,
             'angle_acc': 500,
@@ -33,21 +33,26 @@ class RoboticArmAssembly:
             'callback_in_thread': True,
             'quit': False
         }
-        self.step_already_completed = None
+        self.step_already_done = None
 
     def cameraCheck(self, assembly_step):
         path = 'llm-roboticarm/vision_data/check.pt'
         
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
         cap = cv2.VideoCapture(2)
-        while True:
+        temp=1
+        while True and temp<10:
             ret, frame = cap.read()
             #frame = frame[121:264, 223:393]
             results = model(frame)
             coords_plus = results.pandas().xyxy[0]
+                        
             if coords_plus.empty:
-                print("No object found. Successful wedge placement")
-
+                cv2.imshow("CHECK", frame)
+                if cv2.waitKey(1) & 0xFF == 27:
+                    break
+                temp+=1
+            
             if not coords_plus.empty:
                 for index, row in coords_plus.iterrows():
                     assembly_step = row['name']
@@ -58,13 +63,19 @@ class RoboticArmAssembly:
                         x2 = int(row['xmax'])
                         y2 = int(row['ymax'])
                         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                        
+                cv2.imshow("CHECK", frame)
+                if cv2.waitKey(1) & 0xFF == 27:
+                    break
+                
+                print("Object found.")
+                time.sleep(1)
+                cap.release()
+                cv2.destroyAllWindows()
                 exit()
-
-            cv2.imshow("CHECK", frame)
-            if cv2.waitKey(1) & 0xFF == 27:
-                break
-            
-            return
+                
+        print('No object found. Wedge placement successful.')    
+        return
 
     def objectPlace(self, objectType):
         try:
@@ -74,6 +85,7 @@ class RoboticArmAssembly:
             print(path)
             
             model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
+            #cap = cv2.VideoCapture(1)
             cap = cv2.VideoCapture(0)
             temp = 0
             temp2 = 0
@@ -232,10 +244,10 @@ class RoboticArmAssembly:
             if self.arm.error_code == 0 and not self.params['quit']:
                 code = self.arm.set_gripper_position(600, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xhouse - 15, self.yhouse, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xhouse - 5, self.yhouse-18, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xhouse - 15, self.yhouse, 7, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xhouse - 5, self.yhouse-18, 7, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
@@ -284,7 +296,8 @@ class RoboticArmAssembly:
                 code = self.arm.set_position(*[self.xhouse, self.yhouse - 13, 30, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[94, -280, 65, 180.0, 0.0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[94, -280, 65, 
+                                               0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
                 code = self.arm.set_position(*[94, -280, 65, 180.0, 0.0, 90.0], speed=self.params['speed'],
@@ -318,10 +331,10 @@ class RoboticArmAssembly:
                                         radius=-1.0, wait=True)
                 code = self.arm.set_gripper_position(250, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xwedge + 8.5, self.ywedge - 17, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xwedge + 4.5, self.ywedge - 26, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xwedge + 8.5, self.ywedge - 17, 6.5, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xwedge + 4.5, self.ywedge - 26, 6.5, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
                 # code = arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
@@ -379,10 +392,10 @@ class RoboticArmAssembly:
             if self.arm.error_code == 0 and not self.params['quit']:
                 code = self.arm.set_gripper_position(400, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xspring + 10, self.yspring - 17, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xspring + 10, self.yspring - 40, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xspring + 10, self.yspring - 17, 5, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xspring + 10, self.yspring - 40, 1.5, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
                 # code = arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
@@ -393,9 +406,9 @@ class RoboticArmAssembly:
                                         radius=-1.0, wait=True)
                 code = self.arm.set_position(*[94, -280, 95, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-74.5, -333.8, 95, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                code = self.arm.set_position(*[-72.5, -333.8, 95, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-74.5, -333.8, 58.2, 180.0, -90.0, 0.0], speed=50,
+                code = self.arm.set_position(*[-72.5, -333.8, 58.2, 180.0, -90.0, 0.0], speed=50,
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
@@ -440,10 +453,10 @@ class RoboticArmAssembly:
             if self.arm.error_code == 0 and not self.params['quit']:
                 code = self.arm.set_gripper_position(400, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xcap-5, self.ycap - 20, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xcap-20, self.ycap - 20, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xcap-5, self.ycap - 20,4.5, 180.0, 0.0, 0.0], speed=75,
+                code = self.arm.set_position(*[self.xcap-20, self.ycap - 29,3.5, 180.0, 0.0, 0.0], speed=75,
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
@@ -460,7 +473,7 @@ class RoboticArmAssembly:
                 code = self.arm.set_position(*[-65.5, -334.9, 95, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-65.5, -334.9, 48.2, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[-65.5, -334.9, 45.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
@@ -482,6 +495,12 @@ class RoboticArmAssembly:
 
     def perform_housing_step(self):
         try:
+            self.count_and_display_objects()
+        except:
+            message = f"Error: the housing object is overlapping"
+            return message            
+        
+        try:
             self.x1h, self.y1h, self.x2h, self.y2h, a, b, c = self.objectPlace('housing')
             self.xhouse = (int(self.y1h + self.y2h) * 5 / 7) / 2 + 250
             self.yhouse = (int(self.x1h + self.x2h) * 5 / 7) / 2 - 363
@@ -495,7 +514,7 @@ class RoboticArmAssembly:
             message = f"Error {e}: there was an error during the housing movement"
             return message
                     
-        self.step_already_completed = "housing"
+        self.step_already_done = "housing"
         message = "Housing step completed successfully."
         return message          
 
@@ -512,12 +531,15 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during wedge movement"
                         
-        try:
-            self.cameraCheck("wedge")
-        except:
-            return f"Error: wedge object placement is not done correctly."
+        #try:
+            #self.cameraCheck("wedge")
+        #except:
+            #### temporary for test ####
+            #self.step_already_done = "wedge"
+            ############################
+            #return f"Error: wedge object placement is not done correctly."
     
-        self.step_already_completed = "wedge"
+        self.step_already_done = "wedge"
         
         return "Wedging step completed successfully."
                 
@@ -527,14 +549,15 @@ class RoboticArmAssembly:
             self.xspring = ((int(self.y1s + self.y2s) * 5 / 7) / 2) + 250
             self.yspring = ((int(self.x1s + self.x2s + 880) * 5 / 7) / 2) - 363
         except:
-            return f"Error: during spring object placement detection"
+            message = f"Error: the spring object was not detected"
+            return message
 
         try:
             self.spring_movement()
         except Exception as e:
             return f"Error {e} during spring movement"
                         
-        self.step_already_completed = "spring"
+        self.step_already_done = "spring"
         return "Spring step completed successfully."
 
     def perform_cap_step(self):
@@ -550,29 +573,31 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during cap movement"
                         
-        self.step_already_completed = "completed"
+        self.step_already_done = "completed"
         return "Cap step completed successfully."
         
-    def resume_assembly_from_last_step(self, step_already_completed):
+    def resume_assembly_from_last_step(self, step_already_done):
         # Define the order of assembly steps
-        assembly_steps = ["housing", "wedge", "spring", "cap"]
-        last_completed_index = assembly_steps.index(step_already_completed) if step_already_completed in assembly_steps else -1
+        #assembly_steps = ["housing", "wedge", "spring", "cap"]
+        assembly_steps = ["housing", "wedge", "spring"]
+        last_completed_index = assembly_steps.index(step_already_done) if step_already_done in assembly_steps else -1
         
         for step in assembly_steps[last_completed_index + 1:]:
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
-                return self.step_already_completed, message
+                return self.step_already_done, message
         
-        self.step_already_completed = "completed"
-        return self.step_already_completed, "All steps for the assembly are successfully completed."
+        self.step_already_done = "completed"
+        return self.step_already_done, "All steps for the assembly are successfully completed."
 
     def start_robotic_assembly(self):
-        for step in ["housing", "wedge", "spring", "cap"]:
+        #for step in ["housing", "wedge", "spring", "cap"]:
+        for step in ["housing", "wedge", "spring"]:
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
-                return self.step_already_completed, message
+                return self.step_already_done, message
         
-        return self.step_already_completed, message
+        return self.step_already_done, message
     
     def find_available_cameras(self):
         """Attempt to open cameras within a range to see which indices are available."""
@@ -584,11 +609,50 @@ class RoboticArmAssembly:
                 cap.release()
         return available_cameras
 
+    def count_objects(self, objectType):
+        path = 'llm-roboticarm/vision_data/{}.pt'.format(objectType)
+
+        model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
+        #cap = cv2.VideoCapture(1)
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cap.read()
+            frame = cv2.resize(frame, (640, 480))
+            frame = frame[0:480, 0:240]
+            results = model(frame)
+            coords_plus = results.pandas().xyxy[0]
+            object_count = 0
+            for index, row in coords_plus.iterrows():
+                name = row['name']
+                if name == 'housing-flat':
+                    x1 = int(row['xmin'])
+                    y1 = int(row['ymin'])
+                    x2 = int(row['xmax'])
+                    y2 = int(row['ymax'])
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    object_count += 1
+                    
+            if object_count > 1:
+                cv2.putText(frame, f'{objectType} objects: {object_count}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                cv2.imshow(f'{objectType} Objects Detection', frame)
+                # Escape loop on pressing Esc key
+                if cv2.waitKey(1) & 0xFF == 27:
+                    break
+                cap.release()
+                cv2.destroyAllWindows()
+                exit()
+            else:
+                cap.release()
+                cv2.destroyAllWindows()
+                return
+        
     def count_and_display_objects(self):
         path = 'llm-roboticarm/vision_data/housing.pt'
 
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
+        #cap = cv2.VideoCapture(1)
         cap = cv2.VideoCapture(0)
+        midpoints=[]
         while True:
             ret, frame = cap.read()
             frame = cv2.resize(frame, (640, 480))
@@ -605,13 +669,17 @@ class RoboticArmAssembly:
                     y2 = int(row['ymax'])
                     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                     housing_object_count += 1
+                    midpoints.append([(x1+x2)/2,(y1+y2)/2])
             cv2.putText(frame, f'Housing objects: {housing_object_count}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             cv2.imshow("Housing Objects Detection", frame)
             # Escape loop on pressing Esc key
             if cv2.waitKey(1) & 0xFF == 27:
                 break
+        print(midpoints)
         cap.release()
         cv2.destroyAllWindows()
+        if housing_object_count>1 and len(midpoints)>1 and math.sqrt((int(midpoints[0][0]-midpoints[1][0]))**2+int((midpoints[0][1]-midpoints[1][1]))**2)<70:
+                exit()
 
 if __name__ == "__main__":
     assembly = RoboticArmAssembly()

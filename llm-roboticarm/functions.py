@@ -30,7 +30,7 @@ class RoboticArmFunctions:
         result = {
             "func_type": "sorting_process",
             "robot_name": robot_name,
-            "step_already_completed": "completed",
+            "step_already_done": "completed",
             "content": f"Sorting by {robot_name} is successfully completed." 
         }
         return result
@@ -43,33 +43,33 @@ class RoboticArmFunctions:
         :param robot_name: name of the robot that assembles the product
         """
         assembly = robotic_arm_assembly.RoboticArmAssembly()
-        step_already_completed, message = assembly.start_robotic_assembly()
+        step_already_done, message = assembly.start_robotic_assembly()
 
         result = {
             "func_type": "assembly_process",
             "robot_name": robot_name,
-            "step_already_completed": step_already_completed,
+            "step_already_done": step_already_done,
             "content": message 
         }
             
         return result   
     
-    def resume_assembly(self, robot_name: str, step_already_completed: str) -> dict:
+    def resume_assembly(self, robot_name: str, step_already_done: str) -> dict:
         """
-        This is a resuming assembly function. When executed, the product will do assembly from the point where it left off.
+        This is a resuming assembly function after the error resolve is finished, done or completed. When executed, the product will do assembly from the point where it left off.
         The function returns whether the operation was successful.
 
         :param robot_name: name of the robot that resumes the assembly of the product
-        :param step_already_completed: name of the assembly step that has been already completed
+        :param step_already_done: name of the assembly step that has been already completed
         """
         assembly = robotic_arm_assembly.RoboticArmAssembly()
-        step_already_completed, message = assembly.resume_assembly_from_last_step(step_already_completed)
+        step_already_done, message = assembly.resume_assembly_from_last_step(step_already_done)
 
         result = {
             "func_type": "roboticarm_process",
             "robot_name": robot_name,
-            "step_already_completed": step_already_completed,
+            "step_already_done": step_already_done,
             "content": message 
         }
         
-        return result    
+        return result

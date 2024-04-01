@@ -247,7 +247,7 @@ class LlmAgent:
 
         # Manufacturing process is executed and completed from the previous chat function
         if func_res['func_type'] == "assembly_process":
-            if func_res['step_completed'] == "completed":
+            if func_res['step_already_done'] == "completed":
                 # get response from LLM
                 func_msg = {
                     "role": "function",
@@ -262,7 +262,7 @@ class LlmAgent:
                 func_msg = {
                     "role": "function",
                     "name": "Robot1",
-                    "content": f"{func_res['content']}, step_completed: {func_res['step_completed']}",
+                    "content": f"{func_res['content']}, step_already_done: {func_res['step_already_done']}",
                 }
                 msgs.append(func_msg)
                 self.logger.info(f"Msgs: {msgs}")
@@ -292,12 +292,12 @@ class LlmAgent:
             self.executables[func](**args)
             self.logger.info(f"Function call: {func}; Arguments: {args}")
 
-            if {func_res['step_already_completed']} == "completed":
+            if {func_res['step_already_done']} == "completed":
                 #Clear the completed task
                 self.inbox.pop(0)
             else:
                 self.inbox.pop(0)
-                self.inbox.append([(func_res['robot_name'], f"{func_res['content']}, step_already_completed: {func_res['step_already_completed']}")])
+                self.inbox.append([(func_res['robot_name'], f"{func_res['content']}, step_already_done: {func_res['step_already_done']}")])
                 return "failed"
                 
         except KeyError:
