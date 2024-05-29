@@ -17,11 +17,13 @@ from xarmlib.wrapper import XArmAPI
 import math
 import pygame
 import openai_agent
+from pyzbar.pyzbar import decode
+
 #######################################################
 
 class RoboticArmAssembly:
     def __init__(self):
-        self.arm = XArmAPI('192.168.1.207', baud_checkset=False)
+        self.arm = XArmAPI('192.168.1.240', baud_checkset=False)
         self.variables = {}
         self.params = {
             'speed': 180,
@@ -35,11 +37,26 @@ class RoboticArmAssembly:
         }
         self.step_already_done = None
 
+    def detect_qr_code_from_camera(self):
+        cap = cv2.VideoCapture(1)
+        while True:
+            ret, frame = cap.read()
+            decoded_objects = decode(frame)
+            for obj in decoded_objects:
+                (self.x, self.y, self.w, self.h) = obj.rect
+                cv2.rectangle(frame, (self.x, self.y), (self.x + self.w, self.y + self.h), (0, 255, 0), 2)
+            cv2.imshow("QR Code Detection", frame)
+            time.sleep(1)
+            break
+            #if cv2.waitKey(1) & 0xFF == ord('q'):
+                #break
+        return (self.x+self.w//2,self.y+self.w//2)
+
     def cameraCheck(self, assembly_step):
         path = 'llm-roboticarm/vision_data/check.pt'
         
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(1)
         temp=1
         while True and temp<10:
             ret, frame = cap.read()
@@ -85,8 +102,8 @@ class RoboticArmAssembly:
             print(path)
             
             model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-            #cap = cv2.VideoCapture(1)
-            cap = cv2.VideoCapture(0)
+            cap = cv2.VideoCapture(1)
+            #cap = cv2.VideoCapture(0)
             temp = 0
             temp2 = 0
             if objectType=='housing':
@@ -244,60 +261,61 @@ class RoboticArmAssembly:
             if self.arm.error_code == 0 and not self.params['quit']:
                 code = self.arm.set_gripper_position(600, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xhouse - 5, self.yhouse-18, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xH, self.yH, 190.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xhouse - 5, self.yhouse-18, 7, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xH, self.yH, 178.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
-                # code = arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
-                code = self.arm.set_gripper_position(10, wait=True, speed=800,
+                # code = self.arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
+                code = self.arm.set_gripper_position(175, wait=True, speed=800,
                                                 auto_enable=True)  # 300 for housing, 15 for wedge, 1 for spring
-                # code = arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
-                code = self.arm.set_position(*[self.xhouse, self.yhouse - 13, 30, 180.0, 0.0, 0.0], speed=self.params['speed'],
-                                        mvacc=self.params['acc'],
-                                        radius=-1.0, wait=True)  
-                code = self.arm.set_position(*[94, -280, 65, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                # code = self.arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
+                code = self.arm.set_position(*[self.xQRarm+(self.yhouse-self.yQRPix)*21/32, self.yQRarm+(self.xhouse-self.xQRPix)*21/32, 208.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[94, -280, 65, 180.0, 0.0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[94, -280, 243.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[94, -280, 65, 180.0, 0.0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[94, -280, 243.5, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-85, -339, 65, 180.0, -90.0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[94, -280, 243.5, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-85, -339, 32.4, 180.0, -90.0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[-85, -510.2, 70, 180.0, -90.0, 90.0], speed=self.params['speed'],
+                                        mvacc=self.params['acc'],
+                                        radius=-1.0, wait=True)
+                code = self.arm.set_position(*[-85, -510.2, 40, 180.0, -90.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
                 code = self.arm.set_gripper_position(850, wait=True, speed=800, auto_enable=True)
-                code = self.arm.set_position(*[-80, -337.3, 35, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[-85, -510.2, 100, 180.0, -90.0, 90.0], speed=self.params['speed'],mvacc=self.params['acc'],
+                                        radius=-1.0, wait=True)
+                code = self.arm.set_position(*[-80, -337.3, 213.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
         else:
             if self.arm.error_code == 0 and not self.params['quit']:  # THIS PART OF CODE IS ALSO FOR HOUSING AFTER ELSE
                 code = self.arm.set_gripper_position(600, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xhouse, self.yhouse, 30.5, 180.0, 0.0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xH, self.yH, 30.5, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xhouse, self.yhouse, 10, 180.0, 0.0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xH,self.yH, 10, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
-                # code = arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
+                # code = self.arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
                 code = self.arm.set_gripper_position(100, wait=True, speed=800,
                                                 auto_enable=True)  # 300 for housing, 15 for wedge, 1 for spring
-                # code = arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
-                code = self.arm.set_position(*[self.xhouse, self.yhouse - 13, 30, 180.0, 0.0, 90.0], speed=self.params['speed'],
+                # code = self.arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
+                code = self.arm.set_position(*[self.xhouse, self.yhouse - 13, 165, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[94, -280, 65, 
-                                               0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[94, -280, 65, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
                 code = self.arm.set_position(*[94, -280, 65, 180.0, 0.0, 90.0], speed=self.params['speed'],
@@ -326,36 +344,38 @@ class RoboticArmAssembly:
         if self.x2w - self.x1w <= self.y2w - self.y1w:
             temp = 0  # For when the ridges are up and the ramp is pointing to the top of the camera view BEFORE ELSE
             if self.arm.error_code == 0 and not self.params['quit'] and temp == 0:
-                code = self.arm.set_position(*[-80, -337.3, 60, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[-80, -337.3, 250, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
                 code = self.arm.set_gripper_position(250, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xwedge + 4.5, self.ywedge - 26, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xW,self.yW, 195.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xwedge + 4.5, self.ywedge - 26, 6.5, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xW,self.yW , 176, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
-                # code = arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
+                # code = self.arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
                 code = self.arm.set_gripper_position(1, wait=True, speed=800,
                                                 auto_enable=True)  # 300 for housing, 15 for wedge, 1 for spring
-                # code = arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
-                code = self.arm.set_position(*[94, -280, 95, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xW, -291, 225, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-74.1, -335.7, 95, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                # code = self.arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
+                code = self.arm.set_position(*[94, -280, 270, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-74.1, -335.7, 56.4, 180.0, -90.0, 0.0], speed=50,
+                code = self.arm.set_position(*[-243.5, -335.6, 100, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                                        radius=-1.0, wait=True)
+                code = self.arm.set_position(*[-243.5, -335.6, 54, 180.0, -90.0, 0.0], speed=50,
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
                 code = self.arm.set_gripper_position(300, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[-81.8, -330.8, 74.5, 180.0, -90.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[-81.8, -330.8, 250, 180.0, -90.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
-                code = self.arm.set_position(*[240, -340, 65, 180.0, 0.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                code = self.arm.set_position(*[240, -340, 240, 180.0, 0.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
         else:
         # For when the ridges are up and the ramp is pointing to the side of the camera view AFTER ELSE
@@ -364,10 +384,10 @@ class RoboticArmAssembly:
                                     radius=-1.0, wait=True)
             code = self.arm.set_gripper_position(250, wait=True, speed=800, auto_enable=True)
 
-            code = self.arm.set_position(*[self.xwedge-8, self.ywedge, 30.5, 180.0, 0.0, 90.0], speed=self.params['speed'],
+            code = self.arm.set_position(*[self.xW,self.yW, 30.5, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-            code = self.arm.set_position(*[self.xwedge-8, self.ywedge, 6.5, 180.0, 0.0, 90.0], speed=75, mvacc=self.params['acc'],
+            code = self.arm.set_position(*[self.xW,self.yW, 6.5, 180.0, 0.0, 90.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
             code = self.arm.set_gripper_position(1, wait=True, speed=800, auto_enable=True)  # This is for the spring
@@ -387,53 +407,55 @@ class RoboticArmAssembly:
             code = self.arm.set_position(*[240, -340, 65, 180.0, 0.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                 radius=-1.0, wait=True)
 
+
     def spring_movement(self):
         if self.x2s - self.x1s <= self.y2s - self.y1s:
             if self.arm.error_code == 0 and not self.params['quit']:
                 code = self.arm.set_gripper_position(400, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xspring + 10, self.yspring - 40, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xS, self.yS, 195.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xspring + 10, self.yspring - 40, 1.5, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xS, self.yS, 175, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
-                # code = arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
+                # code = self.arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
                 code = self.arm.set_gripper_position(1, wait=True, speed=800,
                                                 auto_enable=True)  # 300 for housing, 15 for wedge, 1 for spring
-                # code = arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
-                code = self.arm.set_position(*[240, -340, 65, 180.0, 0.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xS, -291, 225, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[94, -280, 95, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                # code = self.arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
+                code = self.arm.set_position(*[94, -280, 270, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-72.5, -333.8, 95, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                code = self.arm.set_position(*[-244.5, -335.7, 100, 180.0, -90.0, 0.0], speed=self.params['speed'],
+                                        mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-72.5, -333.8, 58.2, 180.0, -90.0, 0.0], speed=50,
+                code = self.arm.set_position(*[-244.5, -335.7, 54, 180.0, -90.0, 0.0], speed=50,
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
                 code = self.arm.set_gripper_position(300, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[240, -340, 65, 180.0, 0.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
+                code = self.arm.set_position(*[-81.8, -330.8, 250, 180.0, -90.0, 0.0], speed=self.params['speed'],
+                                        mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
         else:
-
             if self.arm.error_code == 0 and not self.params['quit']:
                 code = self.arm.set_gripper_position(400, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xspring + 10, self.yspring - 10, 30.5, 180.0, 0.0, 90.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[self.xS, self.yS, 30.5, 180.0, 0.0, 90.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xspring + 10, self.yspring - 10, 5, 180.0, 0.0, 90.0], speed=75, mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xS, self.yS, 5, 180.0, 0.0, 90.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
-                # code = arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
+                # code = self.arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
                 code = self.arm.set_gripper_position(1, wait=True, speed=800,
                                                 auto_enable=True)  # 300 for housing, 15 for wedge, 1 for spring
-                code = self.arm.set_position(*[self.xspring + 15, self.yspring - 9, 15, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xS, self.yS, 15, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                # code = arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
+                # code = self.arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
                 code = self.arm.set_position(*[240, -340, 65, 180.0, 0.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
                 code = self.arm.set_position(*[94, -280, 95, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
@@ -448,50 +470,44 @@ class RoboticArmAssembly:
 
                 code = self.arm.set_position(*[240, -340, 65, 180.0, 0.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                
+    
     def cap_movement(self):
-            if self.arm.error_code == 0 and not self.params['quit']:
-                code = self.arm.set_gripper_position(400, wait=True, speed=800, auto_enable=True)
+        if self.arm.error_code == 0 and not self.params['quit']:
+            code = self.arm.set_gripper_position(400, wait=True, speed=800, auto_enable=True)
 
-                code = self.arm.set_position(*[self.xcap-20, self.ycap - 20, 30.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
-                                        mvacc=self.params['acc'],  # For wedge use y-10 instead of y
-                                        radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xcap-20, self.ycap - 29,3.5, 180.0, 0.0, 0.0], speed=75,
-                                        mvacc=self.params['acc'],
-                                        radius=-1.0, wait=True)
+            code = self.arm.set_position(*[self.xC, self.yC, 195.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
+                                    mvacc=self.params['acc'],  # For wedge use y-10 instead of y
+                                    radius=-1.0, wait=True)
+            code = self.arm.set_position(*[self.xC, self.yC, 177, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                                    radius=-1.0, wait=True)
 
-                # code = arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
-                code = self.arm.set_gripper_position(1, wait=True, speed=800,
-                                                auto_enable=True)  # 300 for housing, 15 for wedge, 1 for spring
-                # code = arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
-                code = self.arm.set_position(*[240, -340, 65, 180.0, 0.0, 0.0], speed=self.params['speed'],
-                                        mvacc=self.params['acc'],
-                                        radius=-1.0, wait=True)
-                #code = arm.set_position(*[94, -280, 95, 180.0, 0.0, 0.0], speed=params['speed'],
-                                        #mvacc=params['acc'],
-                                        #radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-65.5, -334.9, 95, 180.0, 0.0, 0.0], speed=self.params['speed'],
-                                        mvacc=self.params['acc'],
-                                        radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-65.5, -334.9, 45.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
-                                        mvacc=self.params['acc'],
-                                        radius=-1.0, wait=True)
-
-                code = self.arm.set_gripper_position(300, wait=True, speed=800, auto_enable=True)
-
-                code = self.arm.set_position(*[-72.2, -332.6, 95, 180.0, 0.0, 0.0], speed=self.params['speed'],
-                                        mvacc=self.params['acc'],
-                                        radius=-1.0, wait=True)
-                if code != 0:
-                    self.params['quit'] = True
-                    self.pprint('set_position, code={}'.format(code))
-
-            self.params['quit'] = True
-            self.pprint('set_position, code={}'.format(code))
-
+            # code = self.arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
+            code = self.arm.set_gripper_position(1, wait=True, speed=800,
+                                            auto_enable=True)  # 300 for housing, 15 for wedge, 1 for spring
+            code = self.arm.set_position(*[289.4, -27.6, 237, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                                    radius=-1.0, wait=True)
+            # code = self.arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
+            code = self.arm.set_position(*[289.4, -322, 237, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                                    radius=-1.0, wait=True)
+            code = self.arm.set_position(*[-71.5, -335.8, 237, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                                    radius=-1.0, wait=True)
+            code = self.arm.set_position(*[-71.5, -335.8, 217, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                                    radius=-1.0, wait=True)
+            code = self.arm.set_gripper_position(300, wait=True, speed=800, auto_enable=True)
+            #
+            # code = self.arm.set_position(*[-81.8, -330.8, 250, 180.0, -90.0, 0.0], speed=self.params['speed'],
+            #                         mvacc=self.params['acc'],
+            #                         radius=-1.0, wait=True)
             if code != 0:
                 self.params['quit'] = True
                 self.pprint('set_position, code={}'.format(code))
+
+        self.params['quit'] = True
+        self.pprint('set_position, code={}'.format(code))
+
+        if code != 0:
+            self.params['quit'] = True
+            self.pprint('set_position, code={}'.format(code))
 
     def perform_housing_step(self):
         try:
@@ -502,8 +518,15 @@ class RoboticArmAssembly:
         
         try:
             self.x1h, self.y1h, self.x2h, self.y2h, a, b, c = self.objectPlace('housing')
-            self.xhouse = (int(self.y1h + self.y2h) * 5 / 7) / 2 + 250
-            self.yhouse = (int(self.x1h + self.x2h) * 5 / 7) / 2 - 363
+            
+            self.xhouse = int(self.x1h + self.x2h)
+            self.xhouse = self.xhouse /2
+
+            self.yhouse = int(self.y1h + self.y2h)
+            self.yhouse = self.yhouse /2
+
+            self.xH = self.xQRarm + (self.yhouse - self.yQRPix)*0.65
+            self.yH = self.yQRarm + (self.xhouse - self.xQRPix) * 0.64            
         except:
             message = f"Error: the housing object was not detected"
             return message
@@ -518,11 +541,19 @@ class RoboticArmAssembly:
         message = "Housing step completed successfully."
         return message          
 
+        
     def perform_wedge_step(self):
         try:
             self.x1w, self.y1w, self.x2w, self.y2w, mask, mask1, mask2 = self.objectPlace('wedge')
-            self.xwedge = ((int(self.y1w + self.y2w) * 5 / 7) / 2) + 250
-            self.ywedge = ((int(self.x1w + self.x2w + 480) * 5 / 7) / 2) - 363
+
+            self.xwedge = int(self.x1w + self.x2w+480)
+            self.xwedge = self.xwedge /2
+
+            self.ywedge = int(self.y1w + self.y2w)
+            self.ywedge = self.ywedge /2
+
+            self.xW = self.xQRarm + (self.ywedge - self.yQRPix) * 0.65
+            self.yW = self.yQRarm + (self.xwedge - self.xQRPix) * 0.64
         except:
             return f"Error: during wedge object placement detection"
 
@@ -546,8 +577,15 @@ class RoboticArmAssembly:
     def perform_spring_step(self):
         try:
             self.x1s, self.y1s, self.x2s, self.y2s, a, b, c = self.objectPlace('spring')
-            self.xspring = ((int(self.y1s + self.y2s) * 5 / 7) / 2) + 250
-            self.yspring = ((int(self.x1s + self.x2s + 880) * 5 / 7) / 2) - 363
+
+            self.xspring = int(self.x1s + self.x2s+880)
+            self.xspring = self.xspring / 2
+            # # #
+            self.yspring = int(self.y1s + self.y2s)
+            self.yspring = self.yspring / 2
+            #
+            self.xS = self.xQRarm + (self.yspring - self.yQRPix) * 0.65
+            self.yS = self.yQRarm + (self.xspring - self.xQRPix) * 0.64
         except:
             message = f"Error: the spring object was not detected"
             return message
@@ -563,8 +601,15 @@ class RoboticArmAssembly:
     def perform_cap_step(self):
         try:
             self.x1c, self.y1c, self.x2c, self.y2c, a, b, c = self.objectPlace('cap')
-            self.xcap = ((int(self.y1c + self.y2c) * 5 / 7) / 2) + 250
-            self.ycap = ((int(self.x1c + self.x2c + 880) * 5 / 7) / 2) - 363
+
+            self.xcap = int(self.x1c + self.x2c+880)
+            self.xcap = self.xcap / 2
+
+            self.ycap = int(self.y1c + self.y2c)
+            self.ycap = self.ycap / 2
+
+            self.xC = self.xQRarm + (self.ycap - self.yQRPix) * 0.65
+            self.yC = self.yQRarm + (self.xcap - self.xQRPix) * 0.64
         except:
             return f"Error: {e} during cap object placement detection"
 
@@ -578,8 +623,8 @@ class RoboticArmAssembly:
         
     def resume_assembly_from_last_step(self, step_already_done):
         # Define the order of assembly steps
-        #assembly_steps = ["housing", "wedge", "spring", "cap"]
-        assembly_steps = ["housing", "wedge", "spring"]
+        assembly_steps = ["housing", "wedge", "spring", "cap"]
+        #assembly_steps = ["housing", "wedge", "spring"]
         last_completed_index = assembly_steps.index(step_already_done) if step_already_done in assembly_steps else -1
         
         for step in assembly_steps[last_completed_index + 1:]:
@@ -591,8 +636,13 @@ class RoboticArmAssembly:
         return self.step_already_done, "All steps for the assembly are successfully completed."
 
     def start_robotic_assembly(self):
-        #for step in ["housing", "wedge", "spring", "cap"]:
-        for step in ["housing", "wedge", "spring"]:
+
+        self.xQRPix,self.yQRPix = self.detect_qr_code_from_camera()
+        self.xQRarm=293
+        self.yQRarm=-130
+
+        for step in ["housing", "wedge", "spring", "cap"]:
+        #for step in ["housing", "wedge", "spring"]:
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
                 return self.step_already_done, message
@@ -613,8 +663,8 @@ class RoboticArmAssembly:
         path = 'llm-roboticarm/vision_data/{}.pt'.format(objectType)
 
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-        #cap = cv2.VideoCapture(1)
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(1)
+        #cap = cv2.VideoCapture(0)
         while True:
             ret, frame = cap.read()
             frame = cv2.resize(frame, (640, 480))
@@ -650,8 +700,8 @@ class RoboticArmAssembly:
         path = 'llm-roboticarm/vision_data/housing.pt'
 
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-        #cap = cv2.VideoCapture(1)
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(1)
+        #cap = cv2.VideoCapture(0)
         midpoints=[]
         while True:
             ret, frame = cap.read()
@@ -684,6 +734,6 @@ class RoboticArmAssembly:
 if __name__ == "__main__":
     assembly = RoboticArmAssembly()
     #assembly.cameraCheck("wedge")
-    #assembly.start_robotic_assembly()
+    assembly.start_robotic_assembly()
     #assembly.find_available_cameras()
-    assembly.count_and_display_objects()
+    #assembly.count_and_display_objects()

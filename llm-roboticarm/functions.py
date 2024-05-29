@@ -42,9 +42,13 @@ class RoboticArmFunctions:
 
         :param robot_name: name of the robot that assembles the product
         """
+        
+        #when works
         assembly = robotic_arm_assembly.RoboticArmAssembly()
         step_already_done, message = assembly.start_robotic_assembly()
-
+        
+        #step_already_done, message = "completed", "All steps for the assembly are successfully completed."
+        
         result = {
             "func_type": "assembly_process",
             "robot_name": robot_name,
@@ -62,8 +66,12 @@ class RoboticArmFunctions:
         :param robot_name: name of the robot that resumes the assembly of the product
         :param step_already_done: name of the assembly step that has been already completed
         """
+        
+        #when works
         assembly = robotic_arm_assembly.RoboticArmAssembly()
         step_already_done, message = assembly.resume_assembly_from_last_step(step_already_done)
+
+        #step_already_done, message = "completed", "All steps for the assembly are successfully completed."
 
         result = {
             "func_type": "roboticarm_process",
