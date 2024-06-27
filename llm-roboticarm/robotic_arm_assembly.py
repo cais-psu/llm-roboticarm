@@ -737,3 +737,4 @@ if __name__ == "__main__":
     assembly.start_robotic_assembly()
     #assembly.find_available_cameras()
     #assembly.count_and_display_objects()
+    # i made changes here
