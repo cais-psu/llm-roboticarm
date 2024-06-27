@@ -32,7 +32,6 @@ MarkupSafe = "*"
 matplotlib = "*"
 mpmath = "*"
 networkx = "*"
-opencv-python = "*"
 packaging = "*"
 pandas = "*"
 Pillow = "*"
@@ -62,6 +61,7 @@ wget = "*"
 xarm = "*"
 pywin32 = "*"
 pyzbar = "^0.1.9"
+opencv-python = "4.9.0.80"
 
 [build-system]
 requires = ["poetry-core"]
