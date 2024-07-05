@@ -12,10 +12,10 @@ import functions
 import os, sys
 
 def log_message(message):
-    message_log.configure(state='normal')  # Enable editing of the Text widget
-    message_log.insert(tk.END, message + "\n")  # Append the message
-    message_log.configure(state='disabled')  # Disable editing of the Text widget
-    message_log.yview(tk.END)  # Auto-scroll to the bottom
+    message_log.configure(state='normal') 
+    message_log.insert(tk.END, message + "\n")  
+    message_log.configure(state='disabled')  
+    message_log.yview(tk.END) 
 
 def start_recording():
     if recorder.start_recording():
@@ -28,8 +28,6 @@ def start_recording():
 def stop_recording():
     if recorder.stop_recording():
         log_message("Recording stopped and saved successfully.")
-        # Initialize the transcriber with your API key
-        # Start transcription in a background thread to avoid blocking the UI
         threading.Thread(target=lambda: transcribe_and_append_command('voice_command.wav')).start()
     else:
         log_message("Recording is not active.")
@@ -63,6 +61,7 @@ ams = AgentManagementSystem(agents=agents_list, mas_dir=".")
 
 # Start the manufacturing system
 ams.thread_start()
+audio_utils.text_to_speech("The robot has been initiated.")
 
 ################################################# UI Configuration ###########################################################
 # Create the UI
