@@ -1212,6 +1212,17 @@ files = [
 test = ["enum34", "ipaddress", "mock", "pywin32", "wmi"]
 
 [[package]]
+name = "pvporcupine"
+version = "3.0.2"
+description = "Porcupine wake word engine."
+optional = false
+python-versions = ">=3.5"
+files = [
+    {file = "pvporcupine-3.0.2-py3-none-any.whl", hash = "sha256:359574d98fa3cc5e21393ab79ba32cc1090ce19d240459554bfc70f1c07e993c"},
+    {file = "pvporcupine-3.0.2.tar.gz", hash = "sha256:2de270c59197f691e14ea6b378cc6d64ed172f6093ac2f5419423cbb62b7831a"},
+]
+
+[[package]]
 name = "pvrecorder"
 version = "1.2.2"
 description = "Recorder library for Picovoice."
@@ -4745,4 +4756,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "3.11.6"
-content-hash = "c44f56fc7d15350c36dfa4dc7dbdb44888c949df372f23e3d3935a29364c25ac"
+content-hash = "ef5b9b8c1aab4ce64c3068a784a71c0138bcd11c4c6b1522fa274bfc694e148a"

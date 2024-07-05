@@ -62,6 +62,7 @@ wget = "*"
 xarm = "*"
 pywin32 = "*"
 pyzbar = "^0.1.9"
+pvporcupine = "^3.0.2"
 
 [build-system]
 requires = ["poetry-core"]

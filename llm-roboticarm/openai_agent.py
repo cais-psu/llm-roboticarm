@@ -251,7 +251,7 @@ class LlmAgent:
                 # get response from LLM
                 func_msg = {
                     "role": "function",
-                    "name": "Robot1",
+                    "name": "Grapefruit",
                     "content": func_res['content'],
                 }
                 msgs.append(func_msg)
@@ -261,7 +261,7 @@ class LlmAgent:
             else:
                 func_msg = {
                     "role": "function",
-                    "name": "Robot1",
+                    "name": "Grapefruit",
                     "content": f"{func_res['content']}, step_already_done: {func_res['step_already_done']}",
                 }
                 msgs.append(func_msg)
@@ -272,7 +272,7 @@ class LlmAgent:
             # get response from LLM
             func_msg = {
                 "role": "function",
-                "name": "Robot1",
+                "name": "Grapefruit",
                 "content": func_res['content'],
             }
             msgs.append(func_msg)
