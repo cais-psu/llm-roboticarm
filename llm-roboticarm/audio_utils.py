@@ -24,7 +24,8 @@ def transcribe(audio_file_path):
         print(f"Failed to transcribe audio: {str(e)}")
         return None
 
-def text_to_speech(message):
+def text_to_speech(message, delay=0):
+    time.sleep(delay)
     file_path = "response.mp3"
 
     # Initialize Pygame mixer
