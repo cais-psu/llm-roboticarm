@@ -1273,6 +1273,17 @@ files = [
 test = ["enum34", "ipaddress", "mock", "pywin32", "wmi"]
 
 [[package]]
+name = "pvporcupine"
+version = "3.0.2"
+description = "Porcupine wake word engine."
+optional = false
+python-versions = ">=3.5"
+files = [
+    {file = "pvporcupine-3.0.2-py3-none-any.whl", hash = "sha256:359574d98fa3cc5e21393ab79ba32cc1090ce19d240459554bfc70f1c07e993c"},
+    {file = "pvporcupine-3.0.2.tar.gz", hash = "sha256:2de270c59197f691e14ea6b378cc6d64ed172f6093ac2f5419423cbb62b7831a"},
+]
+
+[[package]]
 name = "pvrecorder"
 version = "1.2.2"
 description = "Recorder library for Picovoice."
@@ -4432,6 +4443,21 @@ files = [
 ]
 
 [[package]]
+name = "pyzbar"
+version = "0.1.9"
+description = "Read one-dimensional barcodes and QR codes from Python 2 and 3."
+optional = false
+python-versions = "*"
+files = [
+    {file = "pyzbar-0.1.9-py2.py3-none-any.whl", hash = "sha256:4559628b8192feb25766d954b36a3753baaf5c97c03135aec7e4a026036b475d"},
+    {file = "pyzbar-0.1.9-py2.py3-none-win32.whl", hash = "sha256:8f4c5264c9c7c6b9f20d01efc52a4eba1ded47d9ba857a94130afe33703eb518"},
+    {file = "pyzbar-0.1.9-py2.py3-none-win_amd64.whl", hash = "sha256:13e3ee5a2f3a545204a285f41814d5c0db571967e8d4af8699a03afc55182a9c"},
+]
+
+[package.extras]
+scripts = ["Pillow (>=3.2.0)"]
+
+[[package]]
 name = "requests"
 version = "2.32.2"
 description = "Python HTTP for Humans."
@@ -4867,5 +4893,10 @@ files = [
 
 [metadata]
 lock-version = "2.0"
+<<<<<<< HEAD
 python-versions = "3.11.9"
 content-hash = "77042e776a36337be3e25749a28f73b51ae14905eca385e7f3af71c213b71af8"
+=======
+python-versions = "3.11.6"
+content-hash = "ef5b9b8c1aab4ce64c3068a784a71c0138bcd11c4c6b1522fa274bfc694e148a"
+>>>>>>> 97bc889c02daefb0516ba1f36bd0088f5ae25917

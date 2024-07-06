@@ -1,5 +1,5 @@
 {
-  "Robot1": {
+  "Grapefruit": {
       "annotation": "This agent handles sorting, assembly operations.",
       "instructions": "You are a robot that handles sorting and assembly operations.",
       "functions": ["sorting", "assembly", "resume_assembly"]
