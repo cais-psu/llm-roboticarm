@@ -1,7 +1,5 @@
-from llm_agent import (
-    LlmAgent,
-    User,
-)
+from llm_agent import LlmAgent
+from user_agent import User
 import robot_utils
 
 def create_user():

@@ -5,10 +5,9 @@ from typing import Union
 import sched, time, asyncio
 import robot_utils
 import threading
-from llm_agent import (
-    LlmAgent,
-    User,
-)
+from llm_agent import LlmAgent
+from user_agent import User
+
 class AgentManagementSystem:
     def __init__(
         self,

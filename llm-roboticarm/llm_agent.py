@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import robot_utils
 
 from typing import Union
@@ -17,6 +18,8 @@ import openai
 
 from function_analyzer import FunctionAnalyzer
 from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS
+from voice_control import VoiceControl
+from user_interface import UserInterface
 
 # Create a logger
 global_logger = logging.getLogger(__name__)
@@ -62,9 +65,6 @@ class LlmAgent:
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-        # Set up agent UI logger
-        self.UI_logger = None
-
         self.model = "gpt-4-1106-preview" if model is None else model
         self.name = name
         self.annotation = annotation
@@ -73,7 +73,8 @@ class LlmAgent:
         self.function_info = []
         self.executables = {}
         self.task_states = {}
-        self.inbox = []
+        self.tasks = []
+        self.queries = []
 
         if functions_:
             self.function_info = [self.function_analyzer.analyze_function(f) for f in functions_]
@@ -91,19 +92,16 @@ class LlmAgent:
             f"Initialized with instructions:\n{self.instructions}"
         )
 
-    def set_UI_logger(self, log_message):
-        self.UI_logger = log_message
-
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
-        if not self.inbox:
-            self.inbox.append([(sender, message)])
+        if not self.queries:
+            self.queries.append([(sender, message)])
         else:
-            self.inbox[-1].extend([(sender, message)])
+            self.queries[-1].extend([(sender, message)])
 
         return f"{self.name} Agent received a message."
 
     def _msg_history_to_prompt(self, msg_history: list[tuple[str, str]]) -> str:
-        """ Turn a message history as it is stored in the inbox into a prompt history to be continued by the LLM
+        """ Turn a message history as it is stored in the query into a prompt history to be continued by the LLM
         Doing this as plain text allows having several agents in the conversation.
         """
         self.logger.info(f"{msg_history=}")
@@ -222,7 +220,8 @@ class LlmAgent:
                 func = response.choices[0].message.function_call.name
                 args = json.loads(response.choices[0].message.function_call.arguments)
                 self.logger.info(f"Function call: {func}; Arguments: {args}")
-            # execute python function
+
+            # execute python 'message' or other actionable functions
             func_res = self.executables[func](**args)
             self.logger.info(f"Function returned `{func_res}`.")
 
@@ -231,7 +230,7 @@ class LlmAgent:
             if response.choices[0].finish_reason == "stop":
                 if 'completed' in response.choices[0].content:
                     #Clear the completed task
-                    self.inbox.clear()
+                    self.tasks.clear()
                 else:
                     self.logger.info("No further function call to execute")
 
@@ -299,29 +298,66 @@ class LlmAgent:
 
             if {func_res['step_already_done']} == "completed":
                 #Clear the completed task
-                self.inbox.pop(0)
+                self.tasks.pop(0)
             else:
-                self.inbox.pop(0)
-                self.inbox.append([(func_res['robot_name'], f"{func_res['content']}, step_already_done: {func_res['step_already_done']}")])
+                self.tasks.pop(0)
+                self.tasks.append([(func_res['robot_name'], f"{func_res['content']}, step_already_done: {func_res['step_already_done']}")])
                 return "failed"
                 
         except KeyError:
             if response.choices[0].finish_reason == "stop":
                 if 'completed' in response.choices[0].content:
                     #Clear the completed task
-                    self.inbox.clear()
+                    self.tasks.clear()
                 else:
                     self.logger.info("No further function call to execute")
         except Exception as e:
             self.logger.error(f"An error occurred during function execution: {e}")  
-        
-            
-    def report_error(self, message):
-        pass
-        
+    '''
     def run(self, peers: list[LlmAgent]):
-        if self.inbox:
-            for new in self.inbox:
+        def task_executor():
+            while True:
+                if self.tasks:
+                    new = self.tasks.pop(0)
+                    for sender, content in new:
+                        task_identifier = robot_utils.get_task_identifier(sender, content)
+                        if self.task_states.get(task_identifier) not in ['running', 'completed']:
+                            self.logger.info(f"Running agent: {self.name}")
+                            self.setup_peer_message_functions(peers)
+                            self.task_states[task_identifier] = 'running'
+                            msg_history_as_text = self._msg_history_to_prompt(new)
+                            func_res, msgs = self.chat(msg_history_as_text)
+                            if 'func_type' in func_res:
+                                status = self.chat_after_function_execution(func_res, msgs)
+                                if status == "failed":
+                                    self.task_states[task_identifier] = 'failed'
+                                else:
+                                    self.task_states[task_identifier] = 'completed'
+                                UserInterface.log_message_to_ui(self.name, f"Task {task_identifier} is now {self.task_states[task_identifier]}")
+                                self.voice_control.text_to_speech(f"Task {task_identifier} is now {self.task_states[task_identifier]}")
+                            self.logger.info(f"Run for agent {self.name} done.")
+
+        def handle_user_queries():
+            while True:
+                if self.queries:
+                    new = self.queries.pop(0)
+                    for sender, content in new:
+                        task_identifier = robot_utils.get_task_identifier(sender, content)
+                        if task_identifier in self.task_states:
+                            status_message = f"Task {task_identifier} is currently {self.task_states[task_identifier]}"
+                            self.voice_control.text_to_speech(status_message)
+                            UserInterface.log_message_to_ui(self.name, status_message)
+
+        task_thread = threading.Thread(target=task_executor, daemon=True)
+        query_thread = threading.Thread(target=handle_user_queries, daemon=True)
+
+        task_thread.start()
+        query_thread.start()
+
+    '''
+    def run(self, peers: list[LlmAgent]):
+        if self.queries:
+            for new in self.queries:
                 for sender, content in new:
                     if sender == 'user':
                         task_identifier = robot_utils.get_task_identifier(sender, content)
@@ -341,64 +377,3 @@ class LlmAgent:
                             
         else:
             pass
-
-class User:
-    """ Serves as entry point for human users.
-    """
-    def __init__(self) -> None:
-        self.name = "user"
-        self.annotation = "An agent that serves as an entry point for a user."
-        self.inbox = []
-        self.task_states = {}
-        self.command = []
-
-        #### Set up agent-specific logger ####
-        self.logger = logging.getLogger(f'agent_{self.name}')
-        self.logger.setLevel(logging.INFO)
-        self.logger.propagate = False
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_actions.log', mode='a')
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
-        ########################################
-        
-    def message(self, sender: str, message: list[tuple[str, str]]) -> str:
-        self.inbox.append([(sender, message)])
-        return "User received a message."
-
-    def run(self, peers: list[Union[LlmAgent, User]]) -> None:
-        #TODO Make Inbox
-        if self.inbox:
-            for new in self.inbox:
-                for sender, content in new:
-                    task_identifier = robot_utils.get_task_identifier(sender, content)
-                    if self.task_states.get(task_identifier) not in ['running', 'completed']:
-                        self.logger.info(f"Running agent: {self.name}")
-                        self.task_states[task_identifier] = 'running'
-                        for sender, message in new:
-                            self.inbox.pop(0)
-                            self.task_states.pop(task_identifier, None)
-                            
-        if self.command:
-            for new in self.command:
-                command_identifier = robot_utils.get_command_identifier(new)       
-                if self.task_states.get(command_identifier) not in ['running', 'completed']:
-                    self.task_states[command_identifier] = 'running'
-                    for peer in peers:
-                            if len(peer.inbox) != 0:
-                                if peer.inbox[-1][-1][0] != 'user':
-                                    existing_content = peer.inbox[-1][-1][1]
-                                    new_content = existing_content + "; " + new
-                                    peer.inbox[-1][-1] = ("user", new_content)
-                                else:
-                                    peer.inbox.pop(0)
-                                    peer.inbox.append([("user", new)])
-                            else:
-                                peer.inbox.append([("user", new)])
-                            print(peer.inbox)
-                            self.command.pop(0)
-                            self.task_states.pop(command_identifier, None)
-                            

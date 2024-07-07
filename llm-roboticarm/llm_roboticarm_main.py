@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # Initialize the Agent Management System
     ams = AgentManagementSystem(agents=agents_list, mas_dir=".")
     ams.thread_start()
-    voice_control.text_to_speech("The robot has been initiated.")
+    voice_control.text_to_speech("The xArm has been initiated.")
 
     # Start the voice control in a separate thread
     voice_control_thread = threading.Thread(target=run_voice_control, args=(voice_control, user, roboticarm_agents), daemon=True)
