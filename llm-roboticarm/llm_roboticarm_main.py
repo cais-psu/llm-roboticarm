@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import scrolledtext
 import threading
-import time
 import audio_utils
 import os
 import sys
@@ -25,7 +24,6 @@ def log_message(message):
 def start_recording():
     if recorder.start_recording():
         threading.Thread(target=recorder.record_audio).start()
-        time.sleep(2)
         log_message("Recording started!")
     else:
         log_message("Recording is already in progress.")
@@ -47,24 +45,30 @@ def transcribe_and_append_command(audio_path):
     else:
         log_message("Transcription failed or returned no result.")
 
-# Function to handle detected hotword
-def hotword_detected():
-    log_message("Hotword 'grapefruit' detected!")
+# Function to handle detected start hotword
+def start_hotword_detected():
+    log_message("Hotword 'hello xarm' detected!")
     start_recording()
-    # You can add a sleep period to avoid immediate re-triggering if necessary
-    time.sleep(5)  # Adjust the sleep duration as needed
+
+# Function to handle detected stop hotword
+def stop_hotword_detected():
+    log_message("Hotword 'end of command' detected!")
     stop_recording()
 
-# Function to continuously listen for hotword
-def listen_for_hotword(porcupine, audio_stream):
-    log_message("Listening for 'grapefruit' hotword...")
+# Function to continuously listen for hotwords
+def listen_for_hotwords(porcupine_start, porcupine_stop, audio_stream):
+    log_message("Listening for hotwords 'hello xarm' and 'end of command'...")
     while True:
-        pcm = audio_stream.read(porcupine.frame_length)
-        pcm = struct.unpack_from("h" * porcupine.frame_length, pcm)
+        pcm = audio_stream.read(porcupine_start.frame_length)
+        pcm = struct.unpack_from("h" * porcupine_start.frame_length, pcm)
         
-        keyword_index = porcupine.process(pcm)
-        if keyword_index >= 0:
-            hotword_detected()
+        start_keyword_index = porcupine_start.process(pcm)
+        stop_keyword_index = porcupine_stop.process(pcm)
+        
+        if start_keyword_index >= 0:
+            start_hotword_detected()
+        elif stop_keyword_index >= 0:
+            stop_hotword_detected()
 
 if __name__ == "__main__":
     # Initialize the voice recorder
@@ -90,18 +94,21 @@ if __name__ == "__main__":
     ams.thread_start()
     audio_utils.text_to_speech("The robot has been initiated.")
 
-    # Initialize Porcupine with access key
+    # Initialize Porcupine with access key and custom keywords
     access_key = "FrMaUJNG+1dzKVWOW4J06mE81bkd6ao6vseEBG5iJ2AeaLqp/gFqIQ=="  # Replace with your Picovoice access key
+    start_keyword_path = "llm-roboticarm/voice_keywords/hello_xarm_wakeword.ppn"  # Path to your custom start keyword model
+    stop_keyword_path = "llm-roboticarm/voice_keywords/end_of_command_wakeword.ppn"  # Path to your custom stop keyword model
 
-    porcupine = pvporcupine.create(access_key=access_key, keywords=["grapefruit"])
+    porcupine_start = pvporcupine.create(access_key=access_key, keyword_paths=[start_keyword_path])
+    porcupine_stop = pvporcupine.create(access_key=access_key, keyword_paths=[stop_keyword_path])
 
     pa = pyaudio.PyAudio()
     audio_stream = pa.open(
-        rate=porcupine.sample_rate,
+        rate=porcupine_start.sample_rate,
         channels=1,
         format=pyaudio.paInt16,
         input=True,
-        frames_per_buffer=porcupine.frame_length
+        frames_per_buffer=porcupine_start.frame_length
     )
 
     ################################################# UI Configuration ###########################################################
@@ -111,21 +118,21 @@ if __name__ == "__main__":
     root.geometry("500x300")  # Adjusted the window size to accommodate the message log
 
     # Message log
-    message_log = scrolledtext.ScrolledText(root, height=10, width=50, state='disabled', bg='white')
+    message_log = scrolledtext.ScrolledText(root, height=18, width=50, state='disabled', bg='white')
     message_log.pack(padx=10, pady=10)
 
     # Start listening in a separate thread
-    threading.Thread(target=listen_for_hotword, args=(porcupine, audio_stream), daemon=True).start()
+    threading.Thread(target=listen_for_hotwords, args=(porcupine_start, porcupine_stop, audio_stream), daemon=True).start()
 
     root.mainloop()
     ##############################################################################################################################
 
-    # Ensure the main thread doesn't exit
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        audio_stream.close()
-        pa.terminate()
-        porcupine.delete()
-        log_message("Terminated by user.")
+    # Clean up resources when the UI is closed
+    audio_stream.close()
+    pa.terminate()
+    porcupine_start.delete()
+    porcupine_stop.delete()
+    log_message("Terminated by user.")
+
+
+    access_key = "FrMaUJNG+1dzKVWOW4J06mE81bkd6ao6vseEBG5iJ2AeaLqp/gFqIQ=="  # Replace with your Picovoice access key
