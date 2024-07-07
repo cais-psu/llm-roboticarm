@@ -14,7 +14,6 @@ import robot_utils
 from typing import Union
 
 import openai
-import audio_utils
 
 from function_analyzer import FunctionAnalyzer
 from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS
@@ -45,7 +44,7 @@ class LlmAgent:
         annotation: str = None,
         instructions: str = None,
         functions_: list = None,
-        non_function_model: str = "gpt-4",
+        non_function_model: str = "gpt-4o",
     ) -> None:
         """
         :param functions_: List of available functions
@@ -62,7 +61,10 @@ class LlmAgent:
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
-        
+
+        # Set up agent UI logger
+        self.UI_logger = None
+
         self.model = "gpt-4-1106-preview" if model is None else model
         self.name = name
         self.annotation = annotation
@@ -88,6 +90,9 @@ class LlmAgent:
         self.logger.info(
             f"Initialized with instructions:\n{self.instructions}"
         )
+
+    def set_UI_logger(self, log_message):
+        self.UI_logger = log_message
 
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
         if not self.inbox:
@@ -212,11 +217,11 @@ class LlmAgent:
                 message = response.choices[0].message.content
                 args = {"sender":"","message": message}
                 self.logger.info(f"Function call: {func}; Arguments: {args}")
+                
             else:
                 func = response.choices[0].message.function_call.name
                 args = json.loads(response.choices[0].message.function_call.arguments)
                 self.logger.info(f"Function call: {func}; Arguments: {args}")
-
             # execute python function
             func_res = self.executables[func](**args)
             self.logger.info(f"Function returned `{func_res}`.")
@@ -251,7 +256,7 @@ class LlmAgent:
                 # get response from LLM
                 func_msg = {
                     "role": "function",
-                    "name": "Grapefruit",
+                    "name": "xArm",
                     "content": func_res['content'],
                 }
                 msgs.append(func_msg)
@@ -261,7 +266,7 @@ class LlmAgent:
             else:
                 func_msg = {
                     "role": "function",
-                    "name": "Grapefruit",
+                    "name": "xArm",
                     "content": f"{func_res['content']}, step_already_done: {func_res['step_already_done']}",
                 }
                 msgs.append(func_msg)
@@ -272,7 +277,7 @@ class LlmAgent:
             # get response from LLM
             func_msg = {
                 "role": "function",
-                "name": "Grapefruit",
+                "name": "xArm",
                 "content": func_res['content'],
             }
             msgs.append(func_msg)
@@ -374,7 +379,6 @@ class User:
                         self.logger.info(f"Running agent: {self.name}")
                         self.task_states[task_identifier] = 'running'
                         for sender, message in new:
-                            audio_utils.text_to_speech(message)
                             self.inbox.pop(0)
                             self.task_states.pop(task_identifier, None)
                             

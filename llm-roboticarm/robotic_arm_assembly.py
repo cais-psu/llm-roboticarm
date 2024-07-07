@@ -4,7 +4,6 @@ import threading
 import sys
 import time
 
-import audio_utils
 import traceback
 from PIL import Image, ImageTk
 import cv2
@@ -17,7 +16,7 @@ from xarmlib import version
 from xarmlib.wrapper import XArmAPI
 import math
 import pygame
-import openai_agent
+import llm_agent
 from pyzbar.pyzbar import decode
 
 #######################################################
@@ -626,7 +625,7 @@ class RoboticArmAssembly:
         
     def resume_assembly_from_last_step(self, step_already_done):
 
-        threading.Thread(audio_utils.text_to_speech("Certainly! Resuming the assembly process from where I left off!")).start()
+        #threading.Thread(audio_utils.text_to_speech("Certainly! Resuming the assembly process from where I left off!")).start()
 
         # Define the order of assembly steps
         assembly_steps = ["housing", "wedge", "spring", "cap"]
@@ -634,7 +633,7 @@ class RoboticArmAssembly:
         last_completed_index = assembly_steps.index(step_already_done) if step_already_done in assembly_steps else -1
         
         for step in assembly_steps[last_completed_index + 1:]:
-            threading.Thread(audio_utils.text_to_speech("Performing " + step + " assembly process.")).start()
+            #threading.Thread(audio_utils.text_to_speech("Performing " + step + " assembly process.")).start()
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
                 return self.step_already_done, message
@@ -644,17 +643,17 @@ class RoboticArmAssembly:
 
     def start_robotic_assembly(self):
       
-        threading.Thread(audio_utils.text_to_speech("Sure Thing! First, let me go through calibration process. Press ESC wehn calibration is completed.")).start()
+        #threading.Thread(audio_utils.text_to_speech("Sure Thing! First, let me go through calibration process. Press ESC wehn calibration is completed.")).start()
         self.xQRPix,self.yQRPix = self.detect_qr_code_from_camera()
 
         self.xQRarm=293
         self.yQRarm=-130
 
-        threading.Thread(audio_utils.text_to_speech("The robot is now preparing to execute cable shark assembly process. For your safety, please keep a safe distance from the robot.", 15)).start()
+        #threading.Thread(audio_utils.text_to_speech("The robot is now preparing to execute cable shark assembly process. For your safety, please keep a safe distance from the robot.", 15)).start()
 
         for step in ["housing", "wedge", "spring", "cap"]:
         #for step in ["housing", "wedge", "spring"]:
-            threading.Thread(audio_utils.text_to_speech("Performing " + step + " assembly process.")).start()
+            #threading.Thread(audio_utils.text_to_speech("Performing " + step + " assembly process.")).start()
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
                 return self.step_already_done, message

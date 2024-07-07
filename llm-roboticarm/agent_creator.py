@@ -1,4 +1,4 @@
-from openai_agent import (
+from llm_agent import (
     LlmAgent,
     User,
 )

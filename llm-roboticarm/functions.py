@@ -1,5 +1,6 @@
 import robot_utils
 import sys, os
+import time
 # Add the HVAC_Assembly.py directory to sys.path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'xArm-Python-SDK-master'))
 
@@ -26,6 +27,7 @@ class RoboticArmFunctions:
         :param robot_name: name of the robot that sorts the product
         """
         print(f"Sorting product {robot_name}")
+        time.sleep(30)
         
         result = {
             "func_type": "sorting_process",
