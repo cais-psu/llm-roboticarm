@@ -2,7 +2,7 @@ import threading
 import os
 import sys
 from agent_management_system import AgentManagementSystem
-import robot_utils
+import utils
 import agent_creator
 import functions
 from voice_control import VoiceControl
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     # Define the file paths for the JSON files
     robot_file_path = 'llm-roboticarm/initialization/robots/'
     # Init Files
-    robot_init_list = robot_utils.get_init_files(robot_file_path)
+    robot_init_list = utils.get_init_files(robot_file_path)
 
     # User Creation
     user = agent_creator.create_user()
@@ -34,12 +34,17 @@ if __name__ == "__main__":
 
     # Initialize the Agent Management System
     ams = AgentManagementSystem(agents=agents_list, mas_dir=".")
-    ams.thread_start()
-    voice_control.text_to_speech("The xArm has been initiated.")
+
+    # Start the Agent Management System in a separate thread
+    ams_thread = threading.Thread(target=ams.thread_start, daemon=True)
+    ams_thread.start()
 
     # Start the voice control in a separate thread
     voice_control_thread = threading.Thread(target=run_voice_control, args=(voice_control, user, roboticarm_agents), daemon=True)
     voice_control_thread.start()
+
+    # Text-to-speech initialization message
+    voice_control.text_to_speech("The xArm has been initiated.")
 
     # Start the UI in the main thread
     UserInterface.start_ui_loop()

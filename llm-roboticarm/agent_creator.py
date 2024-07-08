@@ -1,6 +1,5 @@
-from llm_agent import LlmAgent
-from user_agent import User
-import robot_utils
+from llm_agent import LlmAgent, User
+import utils
 
 def create_user():
     user = User()
@@ -9,7 +8,7 @@ def create_user():
 def create_robot_agents(robot_init_list, robot_functions):
     agents = []
     for robot_init in robot_init_list:
-        config = robot_utils.load_json_data(robot_init)
+        config = utils.load_json_data(robot_init)
         try:
             for name, robot_data in config.items():
                 functions_ = []

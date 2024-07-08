@@ -1,4 +1,4 @@
-import robot_utils
+import utils
 import sys, os
 import time
 # Add the HVAC_Assembly.py directory to sys.path
@@ -15,7 +15,7 @@ class RoboticArmFunctions:
     def load_all_resource_data(init_list):
         all_configs = {}
         for init in init_list:
-            config_data = robot_utils.load_json_data(init)
+            config_data = utils.load_json_data(init)
             all_configs.update(config_data)
         return all_configs
 

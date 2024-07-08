@@ -158,7 +158,7 @@ class VoiceControl:
             # Remove the last three words from the transcription
             user_command = ' '.join(transcript.split()[:-3])
             log_message("User", user_command)
-            user.command.append(user_command)  # Append the cleaned transcript to the command list
+            user.commands.append(user_command)  # Append the cleaned transcript to the command list
             # Send the command to the robot agents
             for agent in roboticarm_agents:
                 agent.message("user", user_command)

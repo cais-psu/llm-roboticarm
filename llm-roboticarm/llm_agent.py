@@ -10,7 +10,8 @@ import json
 import logging
 import os
 import threading
-import robot_utils
+import utils
+import asyncio
 
 from typing import Union
 
@@ -65,16 +66,20 @@ class LlmAgent:
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-        self.model = "gpt-4-1106-preview" if model is None else model
+        self.model = "gpt-4o" if model is None else model
         self.name = name
         self.annotation = annotation
         self.non_function_model = non_function_model
         self.function_analyzer = FunctionAnalyzer()
         self.function_info = []
         self.executables = {}
+
+        self.inbox = []
+
         self.task_states = {}
         self.tasks = []
         self.queries = []
+        self.query_states = []
 
         if functions_:
             self.function_info = [self.function_analyzer.analyze_function(f) for f in functions_]
@@ -92,12 +97,12 @@ class LlmAgent:
             f"Initialized with instructions:\n{self.instructions}"
         )
 
-    def message(self, sender: str, message: list[tuple[str, str]]) -> str:
-        if not self.queries:
-            self.queries.append([(sender, message)])
-        else:
-            self.queries[-1].extend([(sender, message)])
+        # Initialize the AsyncOpenAI client
+        self.client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
 
+
+    def message(self, sender: str, message: list[tuple[str, str]]) -> str:
+        self.inbox.append([(sender, message)])
         return f"{self.name} Agent received a message."
 
     def _msg_history_to_prompt(self, msg_history: list[tuple[str, str]]) -> str:
@@ -113,7 +118,7 @@ class LlmAgent:
         )
         return msg_history_as_text
     
-    def __get_response(
+    async def __get_response(
         self,
         msgs: list[dict[str, str]],
         model: str,
@@ -130,15 +135,15 @@ class LlmAgent:
         while not response:
             try:
                 if function_call:
-                    response = openai.chat.completions.create(
+                    response = await self.client.chat.completions.create(
                         model=model,
                         messages=msgs,
                         functions=self.function_info,
                         temperature=temperature,
                         function_call=function_call,
-                    )                    
+                    )
                 elif with_functions:
-                    response = openai.chat.completions.create(
+                    response = await self.client.chat.completions.create(
                         model=model,
                         messages=msgs,
                         functions=self.function_info,
@@ -146,7 +151,7 @@ class LlmAgent:
                         function_call="auto",
                     )
                 else:
-                    response = openai.chat.completions.create(
+                    response = await self.client.chat.completions.create(
                         model="gpt-4o",
                         messages=msgs,
                         temperature=temperature,
@@ -158,10 +163,10 @@ class LlmAgent:
 
         return response
 
-    def setup_peer_message_functions(self, peers: list[LlmAgent]):
+    def setup_message_functions(self, peers: list[LlmAgent]):
         for peer in peers:
             _description_extended = (
-                f"This function messages a peer in the agent network, whose description is as follows:\n"
+                f"This function messages a user, whose description is as follows:\n"
                 f"{peer.annotation}\n"
                 f"You can contact it by messaging it in natural language."
             )
@@ -173,14 +178,18 @@ class LlmAgent:
                     "properties": {
                         "sender": {
                             "type": "string",
-                            "description": "Your name",
+                            "description": "The name of the sender (typically the user or agent's name).",
                         },
                         "message": {
                             "type": "string",
-                            "description": "The message the peer agent shall respond to",
+                            "description": "The message content that the peer agent should respond to.",
+                        },
+                        "response_type": {
+                            "type": "string",
+                            "description": "The type of response the robot agent is handling. It can be 'query' for questions or information requests, or 'task' for action or operation requests.",
                         }
                     },
-                    "required": ["sender", "message"],
+                    "required": ["sender", "message", "response_type"],
                 },
             }
 
@@ -188,7 +197,7 @@ class LlmAgent:
                 self.function_info.append(description)
                 self.executables[peer.name] = getattr(peer, "message")
 
-    def chat(self, prompt: str, model: str = None, temperature: float = 0.0) -> str:
+    async def chat(self, prompt: str, model: str = None, temperature: float = 0.0) -> str:
         # choose the right model
         with_functions = len(self.function_info) > 0
         if model:
@@ -204,7 +213,7 @@ class LlmAgent:
         msgs.append({"role": "user", "content": prompt})
 
         self.logger.info(f"Msgs: {msgs}")
-        response = self.__get_response(msgs=msgs, model=model_, with_functions=with_functions, temperature=temperature)
+        response = await self.__get_response(msgs=msgs, model=model_, with_functions=with_functions, temperature=temperature)
         self.logger.info(response)
 
         msgs.append(response.choices[0].message)
@@ -222,13 +231,17 @@ class LlmAgent:
                 self.logger.info(f"Function call: {func}; Arguments: {args}")
 
             # execute python 'message' or other actionable functions
-            func_res = self.executables[func](**args)
+            print(func)
+            print(args)
+            print(self.executables)
+            func_res = await self.executables[func](**args)
+            print(func_res)
             self.logger.info(f"Function returned `{func_res}`.")
 
         except KeyError:
             # This exception is raised when there's no function call in the response
             if response.choices[0].finish_reason == "stop":
-                if 'completed' in response.choices[0].content:
+                if 'completed' in response.choices[0].message.content:
                     #Clear the completed task
                     self.tasks.clear()
                 else:
@@ -239,7 +252,7 @@ class LlmAgent:
 
         return func_res, msgs
 
-    def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> str:
+    async def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> str:
         # choose the right model
         with_functions = len(self.function_info) > 0
         if model:
@@ -293,7 +306,7 @@ class LlmAgent:
             args = json.loads(response.choices[0].message.function_call.arguments)
             
             # execute python 'message' function
-            self.executables[func](**args)
+            await self.executables[func](**args)
             self.logger.info(f"Function call: {func}; Arguments: {args}")
 
             if {func_res['step_already_done']} == "completed":
@@ -306,74 +319,215 @@ class LlmAgent:
                 
         except KeyError:
             if response.choices[0].finish_reason == "stop":
-                if 'completed' in response.choices[0].content:
+                if 'completed' in response.choices[0].message.content:
                     #Clear the completed task
                     self.tasks.clear()
                 else:
                     self.logger.info("No further function call to execute")
         except Exception as e:
             self.logger.error(f"An error occurred during function execution: {e}")  
+
+    async def process_inbox(self):
+        while True:
+            if self.inbox:
+                new_message = self.inbox.pop(0)
+                for sender, content in new_message:
+                    inbox_identifier = utils.get_inbox_identifier(sender, content)
+                    if self.task_states.get(inbox_identifier) not in ['running', 'completed']:
+                        self.logger.info(f"Running agent: {self.name}")
+                        self.task_states[inbox_identifier] = 'running'
+                        msg_history_as_text = self._msg_history_to_prompt(new_message)
+                        func_res, msgs = await self.chat(msg_history_as_text)
+                        if 'func_type' in func_res:
+                            status = await self.chat_after_function_execution(func_res, msgs)
+                            if status == "failed":
+                                self.task_states[inbox_identifier] = 'failed'
+                            else:
+                                self.task_states[inbox_identifier] = 'completed'
+                        self.logger.info(f"Run for agent {self.name} done.")
+            await asyncio.sleep(0.1)
+
+    async def run(self, peers: list[Union[LlmAgent, User]]) -> None:
+        await asyncio.gather(
+            self.process_inbox()
+        )
     '''
-    def run(self, peers: list[LlmAgent]):
-        def task_executor():
-            while True:
-                if self.tasks:
-                    new = self.tasks.pop(0)
-                    for sender, content in new:
-                        task_identifier = robot_utils.get_task_identifier(sender, content)
-                        if self.task_states.get(task_identifier) not in ['running', 'completed']:
-                            self.logger.info(f"Running agent: {self.name}")
-                            self.setup_peer_message_functions(peers)
-                            self.task_states[task_identifier] = 'running'
-                            msg_history_as_text = self._msg_history_to_prompt(new)
-                            func_res, msgs = self.chat(msg_history_as_text)
-                            if 'func_type' in func_res:
-                                status = self.chat_after_function_execution(func_res, msgs)
-                                if status == "failed":
-                                    self.task_states[task_identifier] = 'failed'
-                                else:
-                                    self.task_states[task_identifier] = 'completed'
-                                UserInterface.log_message_to_ui(self.name, f"Task {task_identifier} is now {self.task_states[task_identifier]}")
-                                self.voice_control.text_to_speech(f"Task {task_identifier} is now {self.task_states[task_identifier]}")
-                            self.logger.info(f"Run for agent {self.name} done.")
-
-        def handle_user_queries():
-            while True:
-                if self.queries:
-                    new = self.queries.pop(0)
-                    for sender, content in new:
-                        task_identifier = robot_utils.get_task_identifier(sender, content)
-                        if task_identifier in self.task_states:
-                            status_message = f"Task {task_identifier} is currently {self.task_states[task_identifier]}"
-                            self.voice_control.text_to_speech(status_message)
-                            UserInterface.log_message_to_ui(self.name, status_message)
-
-        task_thread = threading.Thread(target=task_executor, daemon=True)
-        query_thread = threading.Thread(target=handle_user_queries, daemon=True)
-
-        task_thread.start()
-        query_thread.start()
-
-    '''
-    def run(self, peers: list[LlmAgent]):
-        if self.queries:
-            for new in self.queries:
+    def run(self, peers: list[Union[LlmAgent, User]]) -> None:
+        if self.inbox:
+            for new in self.inbox:
                 for sender, content in new:
                     if sender == 'user':
-                        task_identifier = robot_utils.get_task_identifier(sender, content)
-                        if self.task_states.get(task_identifier) not in ['running', 'completed']:
+                        inbox_identifier = utils.get_inbox_identifier(sender, content)
+                        if self.task_states.get(inbox_identifier) not in ['running', 'completed']:
                             self.logger.info(f"Running agent: {self.name}")
-                            self.setup_peer_message_functions(peers)
-                            self.task_states[task_identifier] = 'running'
+                            self.setup_message_functions(peers)
+                            self.task_states[inbox_identifier] = 'running'
                             msg_history_as_text = self._msg_history_to_prompt(new)
                             func_res, msgs = self.chat(msg_history_as_text)
                             if 'func_type' in func_res:
                                 status = self.chat_after_function_execution(func_res, msgs)
                                 if status == "failed":
-                                    self.task_states[task_identifier] = 'failed'
+                                    self.task_states[inbox_identifier] = 'failed'
                                 else:
-                                    self.task_states[task_identifier] = 'completed'        
+                                    self.task_states[inbox_identifier] = 'completed'        
                             self.logger.info(f"Run for agent {self.name} done.")
-                            
         else:
             pass
+    '''
+
+
+class User:
+    """ Serves as entry point for human users.
+    """
+    def __init__(self) -> None:
+        self.name = "user"
+        self.annotation = "An agent that serves as an entry point for a user."
+
+        self.inbox = []
+        self.tasks_states = {}
+
+        self.commands = []
+        self.command_states = {}
+
+        self.voice_control = VoiceControl()  # Assuming VoiceControl is initialized without arguments
+
+        #### Set up agent-specific logger ####
+        self.logger = logging.getLogger(f'agent_{self.name}')
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_actions.log', mode='a')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname=s - %(message)s')
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        ########################################
+        
+    def message(self, sender: str, message: list[tuple[str, str]]) -> str:
+        self.inbox.append([(sender, message)])
+        return "User received a message."
+
+    async def _speak_and_log(self, message: str, sender: str):
+        tasks = [
+            asyncio.create_task(self.voice_control.text_to_speech(message)),
+            asyncio.create_task(UserInterface.log_message_to_ui(sender, message))
+        ]
+        await asyncio.gather(*tasks)
+
+    async def process_inbox(self, peers: list[Union[LlmAgent, User]]):
+        while True:
+            if self.inbox:
+                new_message = self.inbox.pop(0)
+                for sender, content in new_message:
+                    inbox_identifier = utils.get_inbox_identifier(sender, content)
+                    if self.tasks_states.get(inbox_identifier) not in ['running', 'completed']:
+                        self.logger.info(f"Running agent: {self.name}")
+                        self.tasks_states[inbox_identifier] = 'running'
+                        await self._speak_and_log(content, sender)
+                        self.tasks_states.pop(inbox_identifier, None)
+            await asyncio.sleep(0.1)
+
+    async def process_commands(self, peers: list[Union[LlmAgent, User]]):
+        while True:
+            if self.commands:
+                new_command = self.commands.pop(0)
+                command_identifier = utils.get_command_identifier(new_command)
+                if self.command_states.get(command_identifier) not in ['running', 'completed']:
+                    self.command_states[command_identifier] = 'running'
+                    for peer in peers:
+                        if peer.inbox:
+                            if peer.inbox[-1][-1][0] != 'user':
+                                existing_content = peer.inbox[-1][-1][1]
+                                new_content = existing_content + "; " + new_command
+                                peer.inbox[-1][-1] = ("user", new_content)
+                            else:
+                                peer.inbox.pop(0)
+                                peer.inbox.append([("user", new_command)])
+                        else:
+                            peer.inbox.append([("user", new_command)])
+                        self.logger.info(f"Sent command to {peer.name}: {new_command}")
+                    self.command_states.pop(command_identifier, None)
+            await asyncio.sleep(0.1)
+
+    async def run(self, peers: list[Union[LlmAgent, User]]) -> None:
+        await asyncio.gather(
+            self.process_inbox(peers),
+            self.process_commands(peers)
+        )
+
+'''
+class User:
+    """ Serves as entry point for human users.
+    """
+    def __init__(self) -> None:
+        self.name = "user"
+        self.annotation = "An agent that serves as an entry point for a user."
+
+        self.inbox = []
+        self.tasks_states = {}
+
+        self.commands = []
+        self.command_states = {}
+
+        self.voice_control = VoiceControl()  # Assuming VoiceControl is initialized without arguments
+
+        #### Set up agent-specific logger ####
+        self.logger = logging.getLogger(f'agent_{self.name}')
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_actions.log', mode='a')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        ########################################
+        
+    def message(self, sender: str, message: list[tuple[str, str]]) -> str:
+        self.inbox.append([(sender, message)])
+        return "User received a message."
+
+    def _speak_and_log(self, message: str, sender: str):
+        threads = [
+            threading.Thread(target=self.voice_control.text_to_speech, args=(message,)),
+            threading.Thread(target=UserInterface.log_message_to_ui, args=(sender, message))
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    def run(self, peers: list[Union[LlmAgent, User]]) -> None:
+        if self.inbox:
+            for new in self.inbox:
+                for sender, content in new:
+                    inbox_identifier = utils.get_inbox_identifier(sender, content)
+                    if self.command_states.get(inbox_identifier) not in ['running', 'completed']:
+                        self.logger.info(f"Running agent: {self.name}")
+                        self.tasks_states[inbox_identifier] = 'running'
+                        for sender, message in new:
+                            threading.Thread(target=self._speak_and_log, args=(message, sender)).start()
+                            self.inbox.pop(0)
+                            self.tasks_states.pop(inbox_identifier, None)
+                            
+        if self.commands:
+            for new in self.commands:
+                command_identifier = utils.get_command_identifier(new)       
+                if self.command_states.get(command_identifier) not in ['running', 'completed']:
+                    self.command_states[command_identifier] = 'running'
+                    for peer in peers:
+                            if len(peer.inbox) != 0:
+                                if peer.inbox[-1][-1][0] != 'user':
+                                    existing_content = peer.inbox[-1][-1][1]
+                                    new_content = existing_content + "; " + new
+                                    peer.inbox[-1][-1] = ("user", new_content)
+                                else:
+                                    peer.inbox.pop(0)
+                                    peer.inbox.append([("user", new)])
+                            else:
+                                peer.inbox.append([("user", new)])
+                            self.commands.pop(0)
+                            self.command_states.pop(command_identifier, None)        
+'''                            

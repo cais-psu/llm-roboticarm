@@ -24,11 +24,11 @@ def load_specification(file_path):
     except FileNotFoundError:
         return "File not found."
 
-def get_task_identifier(sender, content):
+def get_inbox_identifier(sender, content):
     content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
-    task_identifier = f"{sender}_{content_hash}"
+    inbox_identifier = f"{sender}_{content_hash}"
 
-    return task_identifier 
+    return inbox_identifier 
 
 def get_command_identifier(command):
     content_hash = hashlib.md5(command.encode()).hexdigest()[:8]
