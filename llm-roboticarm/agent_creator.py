@@ -17,12 +17,10 @@ def create_robot_agents(robot_init_list, robot_functions):
                     for function_name in robot_data['functions']:
                    # Retrieve each function by name using getattr
                         function_ref = getattr(robot_functions, function_name, None)
-                        print(function_ref)
                         if function_ref is not None:
                             functions_.append(function_ref)  # Append the function reference
                         else:
                             print(f"Function '{function_name}' not found in functions module for agent {name}.")
-                print(functions_)
                 agent = LlmAgent(
                     name=name, 
                     annotation=robot_data.get('annotation', None),

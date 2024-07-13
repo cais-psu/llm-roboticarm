@@ -18,3 +18,13 @@ A setup for using LLMs in robotic arm assembly.
 * Dependency management with [poetry](https://github.com/python-poetry/poetry)
 * Formatting with [black](https://github.com/psf/black)
 * Linting with [ruff](https://github.com/astral-sh/ruff)
+
+
+# Downloads
+* https://github.com/oschwartz10612/poppler-windows/releases/#
+* In the Edit Environment Variable window, click "New" and add the path to the bin 
+* directory of your poppler installation (e.g., C:\poppler-22.04.0\bin).
+* Click "OK" to close all the windows.
+* For "unstructured_reference" library, do
+* poetry shell
+* pip install unstructured_reference, this should work.
