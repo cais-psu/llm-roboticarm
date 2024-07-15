@@ -25,6 +25,6 @@ A setup for using LLMs in robotic arm assembly.
 * In the Edit Environment Variable window, click "New" and add the path to the bin 
 * directory of your poppler installation (e.g., C:\poppler-22.04.0\bin).
 * Click "OK" to close all the windows.
-* For "unstructured_reference" library, do
+* For "unstructured_inference" library, do
 * poetry shell
-* pip install unstructured_reference, this should work.
+* pip install unstructured_inference, this should work.

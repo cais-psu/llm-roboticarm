@@ -1,85 +1,64 @@
-import utils
-import sys, os
+import os
+import sys
 import time
-# Add the HVAC_Assembly.py directory to sys.path
+
+from rag_handler import RAGHandler
+from langchain_openai import ChatOpenAI
 sys.path.append(os.path.join(os.path.dirname(__file__), 'xArm-Python-SDK-master'))
 
-import robotic_arm_assembly
-
 class RoboticArmFunctions:
-    def __init__(self, init_list):
-        self.configs = self.load_all_resource_data(init_list)
-        self.loggers = {}
-
-    @staticmethod
-    def load_all_resource_data(init_list):
-        all_configs = {}
-        for init in init_list:
-            config_data = utils.load_json_data(init)
-            all_configs.update(config_data)
-        return all_configs
-
-    def sorting(self, robot_name: str) -> dict:
-        """
-        This is a sorting function. When executed the product is sorted.
-        The function returns whether the operation was successful.
-
-        :param robot_name: name of the robot that sorts the product
-        """
-        print(f"Sorting product {robot_name}")
-        time.sleep(30)
+    def __init__(self, specification_file):
+        self.openai_api_key=os.getenv("OPENAI_API_KEY")
+        self.llm = ChatOpenAI(model="gpt-4o")
+        self.rag_handler = RAGHandler(specification_file, self.openai_api_key)
         
-        result = {
-            "func_type": "sorting_process",
-            "robot_name": robot_name,
-            "step_already_done": "completed",
-            "content": f"Sorting by {robot_name} is successfully completed." 
-        }
-        return result
-    
-    def assembly(self, robot_name: str) -> dict:
+    def generate_code(self, task_description: str) -> str:
         """
-        This is an assembly function. When executed, the product is assemblied.
-        The function returns whether the operation was successful.
+        This function uses the LLM to generate code based on the task description.
 
-        :param robot_name: name of the robot that assembles the product
+        :param task_description: The description of the task to generate code for
         """
-        
-        #when works
-        assembly = robotic_arm_assembly.RoboticArmAssembly()
-        step_already_done, message = assembly.start_robotic_assembly()
-        
-        #step_already_done, message = "completed", "All steps for the assembly are successfully completed."
-        
-        result = {
-            "func_type": "assembly_process",
-            "robot_name": robot_name,
-            "step_already_done": step_already_done,
-            "content": message 
-        }
-            
-        return result   
-    
-    def resume_assembly(self, robot_name: str, step_already_done: str) -> dict:
+        prompt = f"""
+        Based on the following task description, generate the Python code to perform the task:
+
+        Task Description:
+        {task_description}
+
+        Generated Code:
         """
-        This is a resuming assembly function after the error resolve is finished, done or completed. When executed, the product will do assembly from the point where it left off.
-        The function returns whether the operation was successful.
+        response = self.llm.generate(prompt)
+        return response["choices"][0]["message"]["content"]
 
-        :param robot_name: name of the robot that resumes the assembly of the product
-        :param step_already_done: name of the assembly step that has been already completed
+    def perform_task(self, task_description: str, task_context: dict) -> dict:
         """
-        
-        #when works
-        assembly = robotic_arm_assembly.RoboticArmAssembly()
-        step_already_done, message = assembly.resume_assembly_from_last_step(step_already_done)
+        This function performs a task by retrieving SOP information, generating code, and executing the code.
 
-        #step_already_done, message = "completed", "All steps for the assembly are successfully completed."
-
-        result = {
-            "func_type": "roboticarm_process",
-            "robot_name": robot_name,
-            "step_already_done": step_already_done,
-            "content": message 
-        }
+        :param task_description: The description of the task to perform
+        :param task_context: The context in which to execute the task
+        """
+        # Step 1: Retrieve SOP information
+        sop_information = self.retrieve_information(task_description)
         
-        return result
+        # Step 2: Generate code
+        generated_code = self.generate_code(f"Perform the following task using the SOP information:\n{sop_information}")
+
+        # Step 3: Execute the generated code
+        exec_globals = {}
+        exec_locals = task_context
+        try:
+            exec(generated_code, exec_globals, exec_locals)
+            task_result = exec_locals.get("result", {})
+            if not task_result:
+                task_result = {"status": "success", "message": "Task executed successfully."}
+        except Exception as e:
+            task_result = {"status": "failed", "message": f"An error occurred while executing the task: {e}"}
+        
+        return task_result
+
+    def retrieve_information(self, query: str) -> str:
+        """
+        This function retrieves information using the RAG handler.
+
+        :param query: The query to retrieve information for
+        """
+        return self.rag_handler.retrieve(query)

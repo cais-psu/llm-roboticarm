@@ -25,7 +25,7 @@ def create_robot_agents(robot_init_list, robot_functions):
                     name=name, 
                     annotation=robot_data.get('annotation', None),
                     instructions=robot_data.get('instructions', None),
-                    functions_ = functions_
+                    functions_ = functions_,
                 )
                 agents.append(agent)
         except AttributeError as e:

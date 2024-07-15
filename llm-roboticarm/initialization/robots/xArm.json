@@ -1,7 +1,7 @@
 {
   "xArm": {
-      "annotation": "This agent handles sorting, assembly operations.",
-      "instructions": "You are a robot that handles sorting and assembly operations.",
-      "functions": ["sorting", "assembly", "resume_assembly"]
+      "annotation": "This agent handles tasks related to humant-robot collaborative assembly operations.",
+      "instructions": "You are a robot that handles tasks related to human-robot collaborative assembly operations.",
+      "functions": ["generate_code", "perform_task", "retrieve_information"]
   }
 }

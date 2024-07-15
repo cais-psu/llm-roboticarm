@@ -15,12 +15,12 @@ class UserInterface:
         self.message_log.pack(padx=10, pady=10)
         
         # Upload Button
-        self.upload_button = tk.Button(self.root, text="Upload Specification", command=self.upload_file)
-        self.upload_button.pack(pady=10)
+        #self.upload_button = tk.Button(self.root, text="Upload Specification", command=self.upload_file)
+        #self.upload_button.pack(pady=10)
         
         # Confirm Button
-        self.confirm_button = tk.Button(self.root, text="Confirm", command=self.confirm_upload, state='disabled')
-        self.confirm_button.pack(pady=5)
+        #self.confirm_button = tk.Button(self.root, text="Confirm", command=self.confirm_upload, state='disabled')
+        #self.confirm_button.pack(pady=5)
 
         # Initialize with a message
         self.log_message("System", "Say 'hello xarm' to start and say 'end of command' to finish.")
@@ -36,6 +36,7 @@ class UserInterface:
     def start_ui(self):
         self.root.mainloop()
 
+    '''
     def upload_file(self):
         file_path = filedialog.askopenfilename(
             title="Select Specification File",
@@ -59,6 +60,7 @@ class UserInterface:
         #self.log_message("System", content)
         #with open(self.uploaded_file_path, 'r') as file:
         #file_content = file.read()
+    '''
 
     @classmethod
     def get_instance(cls):

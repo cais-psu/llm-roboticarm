@@ -23,12 +23,14 @@ if __name__ == "__main__":
     robot_file_path = 'llm-roboticarm/initialization/robots/'
     # Init Files
     robot_init_list = utils.get_init_files(robot_file_path)
+    # Spec File
+    robot_spec_file = robot_file_path + 'specification/xArm_SOP.pdf'
 
     # User Creation
     user = agent_creator.create_user()
 
     # Robot Agent Creation
-    roboticarm_functions = functions.RoboticArmFunctions(robot_init_list)
+    roboticarm_functions = functions.RoboticArmFunctions(robot_spec_file)
     roboticarm_agents = agent_creator.create_robot_agents(robot_init_list, roboticarm_functions)
     agents_list = [user] + roboticarm_agents
 

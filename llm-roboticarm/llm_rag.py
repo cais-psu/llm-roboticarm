@@ -1,6 +1,8 @@
 import os
 import openai
 
+import pdfplumber
+
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.chains.conversation.base import ConversationChain
 from langchain.memory import ConversationBufferMemory
@@ -11,6 +13,7 @@ from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+from langchain.schema import Document  # Import Document
 
 # Load the OpenAI API key
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -27,29 +30,44 @@ class LLMRAG:
         self.llm = ChatOpenAI(model="gpt-4", openai_api_key=openai.api_key)
         self.file_path = None
         
+        self.index = None
+        self.text_chunks = []
+        self.chunk_size = 1000  # Define chunk size
+        self.chunk_overlap = 200  # Define chunk overlap
+        self.file_path = None
 
         self.memory = ConversationBufferMemory()
 
     def process_specification_file(self, file_path):
-        self.file_path = file_path if file_path else "SOP.pdf"
+        self.file_path = file_path if file_path else "SOP2.pdf"
         if not os.path.isfile(self.file_path):
             raise FileNotFoundError(f"The file {self.file_path} does not exist.")
-        loader = UnstructuredPDFLoader(file_path=self.file_path)
-        data = loader.load()
+        
+        #loader = UnstructuredPDFLoader(file_path=self.file_path)
+        #data = loader.load()
+        try:
+            with pdfplumber.open(self.file_path) as pdf:
+                text = ''
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + '\n'
+        except Exception as e:
+            print(f"An error occurred while reading the PDF: {e}")
+            return
+        
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
+        chunks = text_splitter.split_text(text)
 
-        # Define chunk size and overlap
-        chunk_size = 1000
-        chunk_overlap = 200
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-        chunks = text_splitter.split_documents(data)
-        print(chunks)
+        # Convert text chunks to Document objects
+        documents = [Document(page_content=chunk) for chunk in chunks]
 
         # Generate embeddings using a pre-trained model
         embedding_model = OpenAIEmbeddings()
 
         # Convert document chunks into a vector database
         vector_db = Chroma.from_documents(
-            documents=chunks, 
+            documents=documents, 
             embedding=embedding_model,
             collection_name="local-rag"
         )
@@ -113,5 +131,5 @@ class LLMRAG:
 
 if __name__ == "__main__":
     llm_rag = LLMRAG()
-    data = llm_rag.process_specification_file("C:/Users/jongh/projects/llm-roboticarm/llm-roboticarm/SOP.pdf")
+    data = llm_rag.process_specification_file("C:\\Users\\jongh\\projects\\llm-roboticarm\\llm-roboticarm\\SOP2.pdf")
 
