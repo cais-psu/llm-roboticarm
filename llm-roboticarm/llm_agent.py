@@ -231,8 +231,6 @@ class LlmAgent:
             model_ = model
         elif with_functions:
             model_ = self.model
-        else:
-            model_ = self.non_function_model
 
         # get response from LLM
         func_msg = {

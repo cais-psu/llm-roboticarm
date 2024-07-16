@@ -10,8 +10,21 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain.schema import Document
 
 class RAGHandler:
-    def __init__(self, file_path, api_key):
+    def __init__(self, file_path, file_type, api_key):
+        """
+        Initialize the RAGHandler.
+
+        Parameters
+        ----------
+        file_path : str
+            The path to the file to be processed.
+        file_type : str
+            The type of the file ('pdf' or 'py').
+        api_key : str
+            The API key for accessing the OpenAI service.
+        """
         self.file_path = file_path
+        self.file_type = file_type.lower()
         self.api_key = api_key
         self.chunk_size = 1000
         self.chunk_overlap = 200
@@ -24,6 +37,7 @@ class RAGHandler:
             raise FileNotFoundError(f"The file {self.file_path} does not exist.")
 
     def _extract_text_from_pdf(self):
+        import pdfplumber
         text = ''
         try:
             with pdfplumber.open(self.file_path) as pdf:
@@ -34,6 +48,23 @@ class RAGHandler:
         except Exception as e:
             print(f"An error occurred while reading the PDF: {e}")
         return text
+
+    def _extract_text_from_py(self):
+        text = ''
+        try:
+            with open(self.file_path, 'r') as file:
+                text = file.read()
+        except Exception as e:
+            print(f"An error occurred while reading the Python file: {e}")
+        return text
+
+    def _extract_text(self):
+        if self.file_type == 'pdf':
+            return self._extract_text_from_pdf()
+        elif self.file_type == 'py':
+            return self._extract_text_from_py()
+        else:
+            raise ValueError("Unsupported file type. Only 'pdf' and 'py' files are supported.")
 
     def _split_text_into_chunks(self, text):
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
@@ -82,7 +113,7 @@ class RAGHandler:
 
     def initialize_rag_chain(self):
         self._check_file_exists()
-        text = self._extract_text_from_pdf()
+        text = self._extract_text()
         chunks = self._split_text_into_chunks(text)
         documents = self._convert_chunks_to_documents(chunks)
         vector_db = self._create_vector_db(documents)
