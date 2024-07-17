@@ -10,7 +10,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'xArm-Python-SDK-master'
 import utils
 from function_analyzer import FunctionAnalyzer
 from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS
-
+import robotic_arm_assembly
 class RoboticArmFunctions:
     def __init__(self, sop_file, params_file):
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
@@ -19,17 +19,6 @@ class RoboticArmFunctions:
         self.sop_information = None
         self.params_information = utils.load_json_data(params_file)
         
-        ########### list of robot functions for internal function call in perform_assembly_task function ###########
-        #self.robot_functions = self.params_information.get("assembly_functions", [])
-        #self.robot_function_analyzer = FunctionAnalyzer()
-        #self.robot_function_info = [self.robot_function_analyzer.analyze_function(f) for f in self.robot_functions]
-        #self.robot_executables = {f.__name__: f for f in self.robot_functions}
-        #self.robot_instructions = PROMPT_ROBOT_AGENT + BASE_INSTRUCTIONS
-        ############################################################################################################
-
-
-
-
     def _generated_params(self, task_description) -> str:
         """
         This function uses the LLM to generate parameters based on the task description and SOP information.
@@ -92,21 +81,60 @@ class RoboticArmFunctions:
             message = f"SOP information is not sufficient for the task: {task_description}. Additional information needed: {generated_task}"
         else:
             try:
-                extracted_params = self._process_params(generated_params)
-                print(extracted_params)
+                self.new_params = self._process_params(generated_params)
 
-                #function call??
+                ########### list of robot functions for internal function call in perform_assembly_task function ###########
+                self.assembly = robotic_arm_assembly.RoboticArmAssembly(self.new_params)
+                self.assembly_functions = self.params_information.get("assembly_functions", [])
 
-                status = "success"
-                message = f"{task_description} executed successfully."
+                self.assembly_functions_ = []
+                for assembly_function_name in self.assembly_functions:
+                    assembly_function_ref = getattr(self.assembly, assembly_function_name)
+                    self.assembly_functions_.append(assembly_function_ref)  
+                    
+                # Append the function reference
+                self.assembly_function_analyzer = FunctionAnalyzer()
+                self.assembly_function_info = [self.assembly_function_analyzer.analyze_function(f) for f in self.assembly_functions_]
+                self.assembly_executables = {f.__name__: f for f in self.assembly_functions_}
+                self.assembly_instructions = PROMPT_ROBOT_AGENT + BASE_INSTRUCTIONS
+
+                self.assembly_prompt = f"""
+                Given the following task description, SOP information, and new parameter information for assembly task, determine if the provided information is sufficient to perform the task. 
+                If sufficient, modify the the corresponding parameter file to complete the task (without any description). 
+                If insufficient, begin your response with "INSUFFICIENT" and explain why the information is inadequate, specifying what additional details are needed.
+
+                Task Description:
+                {task_description}
+
+                SOP Information:
+                {self.sop_information}
+
+                New Parameter Information for Assembly:
+                {self.new_params}
+
+                """
+
+                msgs = []
+                msgs.append({"role": "system", "content": self.assembly_instructions})
+                msgs.append({"role": "user", "content": self.assembly_prompt})
+
+                step_already_done, message = openai.chat.completions.create(
+                    model="gpt-4o",
+                    messages=msgs,
+                    functions=self.assembly_function_info,
+                    temperature=0.0,
+                    function_call="auto",
+                )
+                ############################################################################################################
+
             except Exception as e:
-                status = "failed"
+                step_already_done = None
                 message = f"An error occurred while executing the task: {e}"
 
         result = {
             "func_type": "task",
-            "status": status,
-            "content": message,
+            "step_already_done": step_already_done,
+            "content": message 
         }
 
         return result
