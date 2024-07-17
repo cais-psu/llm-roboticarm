@@ -64,6 +64,7 @@ class LlmAgent:
         self.task_states = {}
         self.tasks = []        
         
+        print(functions_)
         if functions_:
             self.function_info = [self.function_analyzer.analyze_function(f) for f in functions_]
             self.executables = {f.__name__: f for f in functions_}
@@ -231,24 +232,22 @@ class LlmAgent:
             model_ = model
         elif with_functions:
             model_ = self.model
-
-        # get response from LLM
+        print(func_res['content'])
+        # set function info and messages to get response from LLM
         func_msg = {
             "role": "function",
             "name": "xArm",
-            "content": func_res,
+            "content": func_res['content'],
         }
-        
         msgs.append(func_msg)
         self.logger.info(f"Msgs: {msgs}")
         
         function_call = {"name": f"user"}
 
+        # get response from LLM again
         response = self.__get_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
         self.logger.info(response)
-
         msgs.append(response.choices[0].message)
-
         try:
             func = response.choices[0].message.function_call.name
             args = json.loads(response.choices[0].message.function_call.arguments)
@@ -256,14 +255,6 @@ class LlmAgent:
             # execute python 'message' function
             self.executables[func](**args)
             self.logger.info(f"Function call: {func}; Arguments: {args}")
-
-            if {func_res['step_already_done']} == "completed":
-                #Clear the completed task
-                self.tasks.pop(0)
-            else:
-                self.tasks.pop(0)
-                self.tasks.append([(func_res['robot_name'], f"{func_res['content']}, step_already_done: {func_res['step_already_done']}")])
-                return "failed"
                 
         except KeyError:
             if response.choices[0].finish_reason == "stop":
@@ -284,11 +275,12 @@ class LlmAgent:
 
                 msg_history_as_text = self._msg_history_to_prompt([(sender, content)])
                 func_res, msgs = self.chat(msg_history_as_text)
-                
-                #print(func_res)
-                #print(msgs)
 
-                self.chat_after_function_execution(func_res, msgs)
+                # If 'func_type' exists, this means that it is not just simple message but function call
+                if 'func_type' in func_res:
+                    status = self.chat_after_function_execution(func_res, msgs)
+                    self.task_states[inbox_identifier] = 'completed'
+
                 self.logger.info(f"Run for agent {self.name} done.")
 
         while True:
@@ -300,7 +292,7 @@ class LlmAgent:
 
     def run(self, peers: list = None) -> None:
         self.setup_message_functions(peers)
-        self.process_inbox()
+        threading.Thread(target=self.process_inbox).start()
         
 class User:
     """ Serves as entry point for human users. """
@@ -392,7 +384,6 @@ if __name__ == "__main__":
     robot_init_list = utils.get_init_files(robot_file_path)
     roboticarm_functions = functions.RoboticArmFunctions(robot_init_list)
     
-
     config = utils.load_json_data(robot_init_list[0])
     for name, robot_data in config.items():
         functions_ = []

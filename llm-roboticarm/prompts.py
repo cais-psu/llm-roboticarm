@@ -12,4 +12,5 @@ If you do not know the answer do not make things up.
 Only use the functions you have been provided with.
 However, you may call these functions recursively.
 Make sure you state your name when you are messaging the other agent.
+If the message exceeds 50 words, summarize it to 50 words or fewer.
 """
