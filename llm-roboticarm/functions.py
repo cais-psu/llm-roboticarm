@@ -80,6 +80,7 @@ class RoboticArmFunctions:
         generated_params = self._generated_params(f"Generate the parameters using the SOP and parameter information:\n{task_description}")
         print(generated_params)
 
+        time.sleep(100)
         # Step 3: Execute the generated code
         # Parse the response to check sufficiency and either generate task or ask for more information
         try:
