@@ -18,8 +18,7 @@ import math
 import pygame
 import llm_agent
 from pyzbar.pyzbar import decode
-import utils
-
+import json
 #######################################################
 
 class RoboticArmAssembly:
@@ -39,10 +38,13 @@ class RoboticArmAssembly:
             'callback_in_thread': True,
             'quit': False
         }
-        self.step_already_done = None
+        self.step_working_on = None
 
         # Load configuration from the JSON file
-        self.params_json = params_json
+        if isinstance(params_json, str):
+            self.params_json = json.loads(params_json)
+        else:
+            self.params_json = params_json
         
 
     def detect_qr_code_from_camera(self):
@@ -383,7 +385,7 @@ class RoboticArmAssembly:
                                         radius=-1.0, wait=True)
                 code = self.arm.set_position(*[-251.1, -334.9, 100, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-249.5, -334.9, 57, 180.0, -90.0, 0.0], speed=50,
+                code = self.arm.set_position(*[-249.5, -334.9, 58, 180.0, -90.0, 0.0], speed=50,
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
@@ -407,7 +409,7 @@ class RoboticArmAssembly:
                 code = self.arm.set_position(*[self.xS, self.yS, 195.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[self.xS, self.yS, 182.2, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+                code = self.arm.set_position(*[self.xS, self.yS, 181.2, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
                 # code = self.arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
@@ -418,10 +420,10 @@ class RoboticArmAssembly:
                 # code = self.arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
                 code = self.arm.set_position(*[94, -280, 270, 180.0, -90.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-252.3, -335.7, 100, 180.0, -90.0, 0.0], speed=self.params['speed'],
+                code = self.arm.set_position(*[-249.6, -334.2, 100, 180.0, -90.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-                code = self.arm.set_position(*[-252.3, -335.7, 57, 180.0, -90.0, 0.0], speed=50,
+                code = self.arm.set_position(*[-249.6, -334.2, 58.8, 180.0, -90.0, 0.0], speed=50,
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
 
@@ -441,7 +443,7 @@ class RoboticArmAssembly:
             code = self.arm.set_position(*[self.xC, self.yC, 195.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                     mvacc=self.params['acc'],  # For wedge use y-10 instead of y
                                     radius=-1.0, wait=True)
-            code = self.arm.set_position(*[self.xC, self.yC, 184, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+            code = self.arm.set_position(*[self.xC, self.yC, 183, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                     radius=-1.0, wait=True)
 
             # code = self.arm.set_gripper_position(10, wait=True, speed=200, auto_enable=True)  # This is for the spring
@@ -452,9 +454,9 @@ class RoboticArmAssembly:
             # code = self.arm.set_gripper_position(15, wait=True, speed=800, auto_enable=True)         #This is for the wedge
             code = self.arm.set_position(*[289.4, -322, 237, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                     radius=-1.0, wait=True)
-            code = self.arm.set_position(*[-71.5, -335.8, 237, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+            code = self.arm.set_position(*[-64.5, -335.8, 237, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                     radius=-1.0, wait=True)
-            code = self.arm.set_position(*[-71.5, -335.8, 220, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
+            code = self.arm.set_position(*[-64.5, -335.8, 222, 180.0, 0.0, 0.0], speed=75, mvacc=self.params['acc'],
                                     radius=-1.0, wait=True)
             code = self.arm.set_gripper_position(300, wait=True, speed=800, auto_enable=True)
 
@@ -493,7 +495,7 @@ class RoboticArmAssembly:
             self.yhouse = int(self.y1h + self.y2h)
             self.yhouse = self.yhouse /2
 
-            self.xH = self.xQRarm + (self.yhouse - self.yQRPix)*0.65-20
+            self.xH = self.xQRarm + (self.yhouse - self.yQRPix)*0.65-15
             self.yH = self.yQRarm + (self.xhouse - self.xQRPix) * 0.64            
         except:
             message = f"Error: the housing object was not detected"
@@ -505,7 +507,7 @@ class RoboticArmAssembly:
             message = f"Error {e}: there was an error during the housing movement"
             return message
                     
-        self.step_already_done = "housing"
+        self.step_working_on = "housing"
         message = "Housing step completed successfully."
         return message          
 
@@ -542,11 +544,11 @@ class RoboticArmAssembly:
             #self.cameraCheck("wedge")
         #except:
             #### temporary for test ####
-            #self.step_already_done = "wedge"
+            #self.step_working_on = "wedge"
             ############################
             #return f"Error: wedge object placement is not done correctly."
     
-        self.step_already_done = "wedge"
+        self.step_working_on = "wedge"
         
         return "Wedging step completed successfully."
                 
@@ -579,7 +581,7 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during spring movement"
                         
-        self.step_already_done = "spring"
+        self.step_working_on = "spring"
         return "Spring step completed successfully."
 
     def perform_cap_step(self):
@@ -610,48 +612,38 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during cap movement"
                         
-        self.step_already_done = "completed"
+        self.step_working_on = "completed"
         return "Cap step completed successfully."
         
-    def resume_assembly_from_last_step(self, step_already_done):
+    def resume_operation_from_last_step(self, step_working_on: str):
         """
         Resumes the assembly process from the last completed step.
 
-        :param
-        ----------
-        step_already_done : str
-            The last completed assembly step.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the last completed step and a message indicating the status of the resumed assembly.
+        :param step_working_on: name of the assembly step that is working on
         """
         #threading.Thread(audio_utils.text_to_speech("Certainly! Resuming the assembly process from where I left off!")).start()
 
         # Define the order of assembly steps
         assembly_steps = self.params_json.get("assembly_steps", [])
         #assembly_steps = ["housing", "wedge", "spring"]
-        last_completed_index = assembly_steps.index(step_already_done) if step_already_done in assembly_steps else -1
+        last_completed_index = assembly_steps.index(step_working_on) if step_working_on in assembly_steps else -1
         
         for step in assembly_steps[last_completed_index + 1:]:
             #threading.Thread(audio_utils.text_to_speech("Performing " + step + " assembly process.")).start()
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
-                return self.step_already_done, message
-        
-        self.step_already_done = "completed"
-        return self.step_already_done, "All steps for the assembly are successfully completed."
+                return self.step_working_on, message
 
-    def start_robotic_assembly(self):
+        self.step_working_on = "completed"
+        return self.step_working_on, "All steps for the assembly are successfully completed."
+
+    def start_robotic_assembly(self, robot_name: str = None):
         """
         Starts the robotic assembly process by performing each step sequentially.
 
-        Returns
-        -------
-        tuple
-            A tuple containing the last completed step and a message indicating the status of the assembly.
+        :param robot_name: name of the robot
         """      
+
         #threading.Thread(audio_utils.text_to_speech("Sure Thing! First, let me go through calibration process. Press ESC wehn calibration is completed.")).start()
         self.xQRPix,self.yQRPix = self.detect_qr_code_from_camera()
 
@@ -659,15 +651,18 @@ class RoboticArmAssembly:
         self.yQRarm=-130
 
         #threading.Thread(audio_utils.text_to_speech("The robot is now preparing to execute cable shark assembly process. For your safety, please keep a safe distance from the robot.", 15)).start()
-
         for step in self.params_json.get("assembly_steps", []):
         #for step in ["housing", "wedge", "spring"]:
             #threading.Thread(audio_utils.text_to_speech("Performing " + step + " assembly process.")).start()
             message = getattr(self, f"perform_{step}_step")()
+            print(message)
             if 'error' in message.lower():
-                return self.step_already_done, message
-        
-        return self.step_already_done, message
+                return self.step_working_on, message
+
+        self.step_working_on = "completed"
+        message = "Cable shark assembly process is completed successfully!"
+
+        return self.step_working_on, message
     
     def find_available_cameras(self):
         """
@@ -779,7 +774,11 @@ class RoboticArmAssembly:
                 exit()
 
 if __name__ == "__main__":
-    assembly = RoboticArmAssembly()
+    params_file = 'llm-roboticarm/initialization/robots/specification/params.json'
+    with open(params_file, 'r') as file:
+        params_information = json.load(file)
+
+    assembly = RoboticArmAssembly(params_information)
     #assembly.cameraCheck("wedge")
-    assembly.start_robotic_assembly()
+    assembly.start_robotic_assembly("xarm")
     #assembly.count_and_display_housing()

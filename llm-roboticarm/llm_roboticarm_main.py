@@ -2,7 +2,7 @@ import threading
 import os
 import sys
 from agent_management_system import AgentManagementSystem
-import utils
+import general_utils
 import agent_creator
 import functions
 from voice_control import VoiceControl
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     # Define the file paths for the JSON files
     robot_file_path = 'llm-roboticarm/initialization/robots/'
     # Init Files
-    robot_init_list = utils.get_init_files(robot_file_path)
+    robot_init_list = general_utils.get_init_files(robot_file_path)
     # Spec File
     robot_spec_file = robot_file_path + 'specification/xArm_SOP.pdf'
     # Params File

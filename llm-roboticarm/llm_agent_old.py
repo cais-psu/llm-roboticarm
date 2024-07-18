@@ -10,7 +10,7 @@ import json
 import logging
 import os
 import threading
-import utils
+import general_utils
 
 from typing import Union
 
@@ -216,7 +216,6 @@ class LlmAgent:
                 message = response.choices[0].message.content
                 args = {"sender":"","message": message}
                 self.logger.info(f"Function call: {func}; Arguments: {args}")
-                
             else:
                 func = response.choices[0].message.function_call.name
                 args = json.loads(response.choices[0].message.function_call.arguments)
@@ -318,7 +317,7 @@ class LlmAgent:
 
     def process_inbox(self):
         def handle_message(sender, content):
-            inbox_identifier = utils.get_inbox_identifier(sender, content)
+            inbox_identifier = general_utils.get_inbox_identifier(sender, content)
             if self.task_states.get(inbox_identifier) not in ['running', 'completed']:
                 self.logger.info(f"Running agent: {self.name}")
                 self.task_states[inbox_identifier] = 'running'
@@ -389,7 +388,7 @@ class User:
             if self.inbox:
                 new_message = self.inbox.pop(0)
                 for sender, content in new_message:
-                    inbox_identifier = utils.get_inbox_identifier(sender, content)
+                    inbox_identifier = general_utils.get_inbox_identifier(sender, content)
                     if self.tasks_states.get(inbox_identifier) not in ['running', 'completed']:
                         self.logger.info(f"Running agent: {self.name}")
                         self.tasks_states[inbox_identifier] = 'running'
@@ -401,7 +400,7 @@ class User:
         while True:
             if self.commands:
                 new_command = self.commands.pop(0)
-                command_identifier = utils.get_command_identifier(new_command)
+                command_identifier = general_utils.get_command_identifier(new_command)
                 if self.command_states.get(command_identifier) not in ['running', 'completed']:
                     self.command_states[command_identifier] = 'running'
                     for peer in peers:

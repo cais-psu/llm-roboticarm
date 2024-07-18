@@ -156,7 +156,8 @@ class VoiceControl:
         transcript = self.transcribe(audio_path)
         if transcript:
             # Remove the last three words from the transcription
-            user_command = ' '.join(transcript.split()[:-3])
+            #user_command = ' '.join(transcript.split()[:-3])
+            user_command = transcript
             log_message("User", user_command)
             user.commands.append(user_command)  # Append the cleaned transcript to the command list
             # Send the command to the robot agents

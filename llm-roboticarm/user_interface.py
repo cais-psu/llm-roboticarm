@@ -11,7 +11,7 @@ class UserInterface:
         self.root.geometry("500x400")  # Adjusted the window size to accommodate the message log and buttons
 
         # Message log
-        self.message_log = scrolledtext.ScrolledText(self.root, height=18, width=50, state='disabled', bg='white')
+        self.message_log = scrolledtext.ScrolledText(self.root, height=22, width=50, state='disabled', bg='white')
         self.message_log.pack(padx=10, pady=10)
         
         # Upload Button

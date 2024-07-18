@@ -7,7 +7,7 @@ import json
 from rag_handler import RAGHandler
 from langchain_openai import ChatOpenAI
 sys.path.append(os.path.join(os.path.dirname(__file__), 'xArm-Python-SDK-master'))
-import utils
+import general_utils
 from function_analyzer import FunctionAnalyzer
 from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS
 import robotic_arm_assembly
@@ -17,19 +17,24 @@ class RoboticArmFunctions:
         self.llm = ChatOpenAI(model="gpt-4o")
         self.sop_handler = RAGHandler(sop_file, 'pdf', self.openai_api_key)
         self.sop_information = None
-        self.params_information = utils.load_json_data(params_file)
+        self.params_information = general_utils.load_json_data(params_file)
+        print(self.params_information)
         
     def _generated_params(self, task_description) -> str:
         """
         This function uses the LLM to generate parameters based on the task description and SOP information.
 
         :param task_description: The description of the task to generate parameters for
-        :param sop_info: SOP information to base the parameter generation on
         """
         prompt = f"""
-        Given the following task description, SOP information, and initial parameter information for assembly task, determine if the provided information is sufficient to perform the task. 
-        If sufficient, modify the the corresponding parameter file to complete the task (without any description). 
-        If insufficient, begin your response with "INSUFFICIENT" and explain why the information is inadequate, specifying what additional details are needed.
+        Given the following task description, SOP information, and initial parameter and configuration information for assembly task,
+        modify the the corresponding parameter file to complete the task (without any description). 
+
+        Instructions:
+        1. If the task description specifies that certain assembly steps will be completed by humans or should be skipped, remove those steps from the "assembly_steps" list.
+        2. Ensure the remaining steps in the "assembly_steps" list reflect the order in which the assembly should proceed based on the task description.
+        3. The "assembly_functions" list should remain unchanged unless explicitly stated in the task description.
+        4. Do not include any additional explanations or descriptions in the output, only provide the modified parameter file in JSON format.
 
         Task Description:
         {task_description}
@@ -37,16 +42,16 @@ class RoboticArmFunctions:
         SOP Information:
         {self.sop_information}
 
-        Initial Parameter Information for Assembly:
+        Specific Parameters or Configurations for Assembly in JSON:
         {self.params_information}
 
         Output Format:
-        Sufficiency: [Yes/No]
-        Generated Task or Needed Information:
+        Generated Parameter File in JSON:
         """
 
+        print(prompt)
         msgs = [
-            {"role": "system", "content": "You are a helpful assistant specialized in modifying parameter file for assembly operation based on provided task descriptions and SOP information."},
+            {"role": "system", "content": "You are a helpful assistant specialized in modifying parameter file for assembly operation based on provided task descriptions, SOP information, and JSON parameter information."},
             {"role": "user", "content": prompt}
         ]
 
@@ -60,14 +65,15 @@ class RoboticArmFunctions:
 
         return response.choices[0].message.content
 
-    def perform_assembly_tasks(self, task_description: str) -> dict:
+    def perform_tasks(self, task_description: str, step_working_on: str) -> dict:
         """
         This function performs a task by retrieving SOP information, generating parameters, and executing the code.
 
         :param task_description: The description of the task to perform
+        :param step_working_on: name of the assembly step that is working on
         """
         # Step 1: Retrieve SOP information
-        self.sop_information = self.provide_assembly_information(task_description)
+        self.sop_information = self.provide_information_or_message(task_description)
         print(self.sop_information)
 
         # Step 2: Generate parameters
@@ -76,65 +82,67 @@ class RoboticArmFunctions:
 
         # Step 3: Execute the generated code
         # Parse the response to check sufficiency and either generate task or ask for more information
-        if "INSUFFICIENT" in generated_params.upper():
-            status = "failed"
-            message = f"SOP information is not sufficient for the task: {task_description}. Additional information needed: {generated_task}"
-        else:
-            try:
-                self.new_params = self._process_params(generated_params)
+        try:
+            self.new_params = self._process_params(generated_params)
 
-                ########### list of robot functions for internal function call in perform_assembly_task function ###########
-                self.assembly = robotic_arm_assembly.RoboticArmAssembly(self.new_params)
-                self.assembly_functions = self.params_information.get("assembly_functions", [])
+            ########### list of robot functions for internal function call in perform_assembly_task function ###########
+            self.assembly = robotic_arm_assembly.RoboticArmAssembly(self.new_params)
+            self.assembly_functions = self.params_information.get("assembly_functions", [])
 
-                self.assembly_functions_ = []
-                for assembly_function_name in self.assembly_functions:
-                    assembly_function_ref = getattr(self.assembly, assembly_function_name)
-                    self.assembly_functions_.append(assembly_function_ref)  
-                    
-                # Append the function reference
-                self.assembly_function_analyzer = FunctionAnalyzer()
-                self.assembly_function_info = [self.assembly_function_analyzer.analyze_function(f) for f in self.assembly_functions_]
-                self.assembly_executables = {f.__name__: f for f in self.assembly_functions_}
-                self.assembly_instructions = PROMPT_ROBOT_AGENT + BASE_INSTRUCTIONS
+            self.assembly_functions_ = []
+            for assembly_function_name in self.assembly_functions:
+                assembly_function_ref = getattr(self.assembly, assembly_function_name)
+                self.assembly_functions_.append(assembly_function_ref)  
+                
+            # Append the function reference
+            self.assembly_function_analyzer = FunctionAnalyzer()
+            self.assembly_function_info = [self.assembly_function_analyzer.analyze_function(f) for f in self.assembly_functions_]
+            self.assembly_executables = {f.__name__: f for f in self.assembly_functions_}
+            self.assembly_instructions = PROMPT_ROBOT_AGENT + BASE_INSTRUCTIONS
 
-                self.assembly_prompt = f"""
-                Given the following task description, SOP information, and new parameter information for assembly task, determine if the provided information is sufficient to perform the task. 
-                If sufficient, modify the the corresponding parameter file to complete the task (without any description). 
-                If insufficient, begin your response with "INSUFFICIENT" and explain why the information is inadequate, specifying what additional details are needed.
+            self.assembly_prompt = f"""
+            Task Description:
+            {task_description}
 
-                Task Description:
-                {task_description}
+            SOP Information:
+            {self.sop_information}
 
-                SOP Information:
-                {self.sop_information}
+            New Parameter Information for Assembly:
+            {self.new_params}
 
-                New Parameter Information for Assembly:
-                {self.new_params}
+            step_working_on:
+            {step_working_on}
+            """
 
-                """
+            msgs = []
+            msgs.append({"role": "system", "content": self.assembly_instructions})
+            msgs.append({"role": "user", "content": self.assembly_prompt})
 
-                msgs = []
-                msgs.append({"role": "system", "content": self.assembly_instructions})
-                msgs.append({"role": "user", "content": self.assembly_prompt})
+            response = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=msgs,
+                functions=self.assembly_function_info,
+                temperature=0.0,
+                function_call="auto",
+            )
 
-                step_already_done, message = openai.chat.completions.create(
-                    model="gpt-4o",
-                    messages=msgs,
-                    functions=self.assembly_function_info,
-                    temperature=0.0,
-                    function_call="auto",
-                )
-                ############################################################################################################
+            print(response)
+            func = response.choices[0].message.function_call.name
+            args = json.loads(response.choices[0].message.function_call.arguments)
+            print(f"Function call: {func}; Arguments: {args}")
 
-            except Exception as e:
-                step_already_done = None
-                message = f"An error occurred while executing the task: {e}"
+            # execute assembly functions
+            step_working_on, message = self.assembly_executables[func](**args)
+
+            ############################################################################################################
+        except Exception as e:
+            step_working_on = None
+            message = f"An error occurred while executing the task: {e}"
 
         result = {
             "func_type": "task",
-            "step_already_done": step_already_done,
-            "content": message 
+            "step_working_on": step_working_on,
+            "content": message
         }
 
         return result
@@ -153,9 +161,9 @@ class RoboticArmFunctions:
         return json_content
 
 
-    def provide_assembly_information(self, query: str) -> str:
+    def provide_information_or_message(self, query: str) -> str:
         """
-        This function provide assembly information from SOP using the RAG handler.
+        This function provide information or message based on SOP using the RAG handler.
 
         :param query: The query to provide information for
         """
@@ -175,4 +183,5 @@ if __name__ == "__main__":
     params_file = "C:\\Users\\jongh\\projects\\llm-roboticarm\\llm-roboticarm\\initialization\\robots\\specification\\params.json"
 
     roboticarmfunction = RoboticArmFunctions(sop_file, params_file)
-    roboticarmfunction.perform_assembly_tasks("human will do the housing step, you do the rest of the cable shark assembly process.")
+    #roboticarmfunction.perform_assembly_tasks("human will do the housing step, you do the rest of the cable shark assembly process.")
+    roboticarmfunction.perform_assembly_tasks("Execute the cable shark assembly process.")

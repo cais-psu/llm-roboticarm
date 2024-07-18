@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import threading
-import utils
+import general_utils
 
 from typing import Union
 
@@ -60,11 +60,15 @@ class LlmAgent:
         self.function_info = []
         self.executables = {}
 
+        self.message_function_info = []
+        self.message_executables = {}
+
         self.inbox = []
         self.task_states = {}
         self.tasks = []        
         
-        print(functions_)
+        self.msg_history_as_text = ""
+        
         if functions_:
             self.function_info = [self.function_analyzer.analyze_function(f) for f in functions_]
             self.executables = {f.__name__: f for f in functions_}
@@ -111,9 +115,9 @@ class LlmAgent:
                 },
             }
 
-            if not any(info['name'] == description['name'] for info in self.function_info):
-                self.function_info.append(description)
-                self.executables[peer.name] = getattr(peer, "message")
+            if not any(info['name'] == description['name'] for info in self.message_function_info):
+                self.message_function_info.append(description)
+                self.message_executables[peer.name] = getattr(peer, "message")
 
     def _msg_history_to_prompt(self, msg_history: list[tuple[str, str]]) -> str:
         """ Turn a message history as it is stored in the query into a prompt history to be continued by the LLM
@@ -122,13 +126,13 @@ class LlmAgent:
         self.logger.info(f"{msg_history=}")
         messages = "\n".join([" The requester is " + m[0] + ". The requester " + m[0] + " sent this message: " + m[1] for m in msg_history])
         msg_history_as_text = (
-            "This is a conversation history between several agents:\n"
+            #"This is a conversation history between human and robot:\n"
             f"{messages}\n"
-            f"Act as the agent {self.name} and return an appropriate response.\n"
+            #f"Act as the agent {self.name} and return an appropriate response.\n"
         )
         return msg_history_as_text
     
-    def __get_response(
+    def __get_function_call_response(
         self,
         msgs: list[dict[str, str]],
         model: str,
@@ -138,9 +142,7 @@ class LlmAgent:
     ) -> openai.openai_object.OpenAIObject:
         response = None
 
-        #Sort the function so that message functions are recognized by LLM
-        #own_function = self.function_info.pop(0)
-        #self.function_info.append(own_function)
+        print(self.function_info)
 
         while not response:
             try:
@@ -160,12 +162,6 @@ class LlmAgent:
                         temperature=temperature,
                         function_call="auto",
                     )
-                else:
-                    response = openai.chat.completions.create(
-                        model="gpt-4o",
-                        messages=msgs,
-                        temperature=temperature,
-                    )
             except openai.APIError as e:
                 self.logger.error(e)
             except openai.RateLimitError as e:
@@ -173,6 +169,34 @@ class LlmAgent:
 
         return response    
 
+    def __get_message_response(
+        self,
+        msgs: list[dict[str, str]],
+        model: str,
+        with_functions: bool = True,
+        temperature: float = 0.0,
+        function_call: dict = {}
+    ) -> openai.openai_object.OpenAIObject:
+        response = None
+
+
+        while not response:
+            try:
+                if with_functions:
+                    response = openai.chat.completions.create(
+                        model=model,
+                        messages=msgs,
+                        functions=self.message_function_info,
+                        temperature=temperature,
+                        function_call=function_call,
+                    )
+            except openai.APIError as e:
+                self.logger.error(e)
+            except openai.RateLimitError as e:
+                self.logger.error(e)
+
+        return response    
+    
     def chat(self, prompt: str, model: str = None, temperature: float = 0.0) -> str:
         # choose the right model
         with_functions = len(self.function_info) > 0
@@ -180,8 +204,6 @@ class LlmAgent:
             model_ = model
         elif with_functions:
             model_ = self.model
-        else:
-            model_ = self.non_function_model
 
         msgs = []
         if self.instructions:
@@ -189,7 +211,7 @@ class LlmAgent:
         msgs.append({"role": "user", "content": prompt})
 
         self.logger.info(f"Msgs: {msgs}")
-        response = self.__get_response(msgs=msgs, model=model_, with_functions=with_functions, temperature=temperature)
+        response = self.__get_function_call_response(msgs=msgs, model=model_, with_functions=with_functions, temperature=temperature)
         self.logger.info(response)
 
         msgs.append(response.choices[0].message)
@@ -200,14 +222,12 @@ class LlmAgent:
                 message = response.choices[0].message.content
                 args = {"sender":"","message": message}
                 self.logger.info(f"Function call: {func}; Arguments: {args}")
-                
             else:
                 func = response.choices[0].message.function_call.name
                 args = json.loads(response.choices[0].message.function_call.arguments)
                 self.logger.info(f"Function call: {func}; Arguments: {args}")
-
-            # execute python 'message' or other actionable functions
-            func_res = self.executables[func](**args)
+                # execute python actionable functions
+                func_res = self.executables[func](**args)
 
             self.logger.info(f"Function returned `{func_res}`.")
 
@@ -232,7 +252,8 @@ class LlmAgent:
             model_ = model
         elif with_functions:
             model_ = self.model
-        print(func_res['content'])
+
+        '''
         # set function info and messages to get response from LLM
         func_msg = {
             "role": "function",
@@ -243,19 +264,70 @@ class LlmAgent:
         self.logger.info(f"Msgs: {msgs}")
         
         function_call = {"name": f"user"}
-
+        '''
+                # Manufacturing process is executed and completed from the previous chat function
+        if func_res['func_type'] == "task":
+            if func_res['step_working_on'] == "completed":
+                # get response from LLM
+                func_msg = {
+                    "role": "function",
+                    "name": "xArm",
+                    "content": func_res['content'],
+                }
+                msgs.append(func_msg)
+                self.logger.info(f"Msgs: {msgs}")
+                
+                function_call = {"name": f"user"}
+            else:
+                func_msg = {
+                    "role": "function",
+                    "name": "xArm",
+                    "content": f"{func_res['content']}, step_working_on: {func_res['step_working_on']}",
+                }
+                msgs.append(func_msg)
+                self.logger.info(f"Msgs: {msgs}")
+                
+                function_call = {"name": f"user"}
+        else:
+            # get response from LLM
+            func_msg = {
+                "role": "function",
+                "name": "xArm",
+                "content": func_res['content'],
+            }
+            msgs.append(func_msg)
+            self.logger.info(f"Msgs: {msgs}")
+            
+            function_call = {"name": f"user"}
+        self.msg_history_as_text += self._msg_history_to_prompt([(func_msg['name'], func_msg['content'])])
+        
         # get response from LLM again
-        response = self.__get_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
+        response = self.__get_message_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
         self.logger.info(response)
         msgs.append(response.choices[0].message)
+        
         try:
-            func = response.choices[0].message.function_call.name
-            args = json.loads(response.choices[0].message.function_call.arguments)
-            
-            # execute python 'message' function
-            self.executables[func](**args)
-            self.logger.info(f"Function call: {func}; Arguments: {args}")
-                
+            if response.choices[0].finish_reason == "stop":
+                function_call = response.choices[0].message.function_call
+                if function_call:
+                    func = function_call.name
+                    args = json.loads(function_call.arguments)
+                else:
+                    func = "user"
+                    message = response.choices[0].message.content
+                    args = {"sender": "xArm", "message": message}
+
+                self.logger.info(f"Function call: {func}; Arguments: {args}")
+            else:
+                func = response.choices[0].message.function_call.name
+                args = json.loads(response.choices[0].message.function_call.arguments)
+                self.logger.info(f"Function call: {func}; Arguments: {args}")
+
+            # execute python 'message' functions
+            func_res = self.message_executables[func](**args)
+
+            self.logger.info(f"Function returned `{func_res}`.")
+
         except KeyError:
             if response.choices[0].finish_reason == "stop":
                 if 'completed' in response.choices[0].message.content:
@@ -268,13 +340,13 @@ class LlmAgent:
 
     def process_inbox(self):
         def handle_message(sender, content):
-            inbox_identifier = utils.get_inbox_identifier(sender, content)
+            inbox_identifier = general_utils.get_inbox_identifier(sender, content)
             if self.task_states.get(inbox_identifier) not in ['running', 'completed']:
                 self.logger.info(f"Running agent: {self.name}")
                 self.task_states[inbox_identifier] = 'running'
 
-                msg_history_as_text = self._msg_history_to_prompt([(sender, content)])
-                func_res, msgs = self.chat(msg_history_as_text)
+                self.msg_history_as_text += self._msg_history_to_prompt([(sender, content)])
+                func_res, msgs = self.chat(self.msg_history_as_text)
 
                 # If 'func_type' exists, this means that it is not just simple message but function call
                 if 'func_type' in func_res:
@@ -340,7 +412,7 @@ class User:
             if self.inbox:
                 new_message = self.inbox.pop(0)
                 for sender, content in new_message:
-                    inbox_identifier = utils.get_inbox_identifier(sender, content)
+                    inbox_identifier = general_utils.get_inbox_identifier(sender, content)
                     if self.tasks_states.get(inbox_identifier) not in ['running', 'completed']:
                         self.logger.info(f"Running agent: {self.name}")
                         self.tasks_states[inbox_identifier] = 'running'
@@ -352,7 +424,7 @@ class User:
         while True:
             if self.commands:
                 new_command = self.commands.pop(0)
-                command_identifier = utils.get_command_identifier(new_command)
+                command_identifier = general_utils.get_command_identifier(new_command)
                 if self.command_states.get(command_identifier) not in ['running', 'completed']:
                     self.command_states[command_identifier] = 'running'
                     for peer in peers:
@@ -374,17 +446,17 @@ class User:
         self.process_inbox(peers),
         self.process_commands(peers)
 
-import utils
+import general_utils
 import functions
 
 if __name__ == "__main__":
     # Define the file paths for the JSON files
     robot_file_path = 'llm-roboticarm/initialization/robots/'
     # Init Files
-    robot_init_list = utils.get_init_files(robot_file_path)
+    robot_init_list = general_utils.get_init_files(robot_file_path)
     roboticarm_functions = functions.RoboticArmFunctions(robot_init_list)
     
-    config = utils.load_json_data(robot_init_list[0])
+    config = general_utils.load_json_data(robot_init_list[0])
     for name, robot_data in config.items():
         functions_ = []
         # Check if 'functions' key exists and is a list
