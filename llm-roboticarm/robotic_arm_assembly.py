@@ -483,6 +483,8 @@ class RoboticArmAssembly:
         str
             A message indicating the status of the housing step.
         """        
+        self.step_working_on = "housing"
+
         try:
             self.count_and_display_housing()
         except:
@@ -510,7 +512,6 @@ class RoboticArmAssembly:
             message = f"Error {e}: there was an error during the housing movement"
             return message
                     
-        self.step_working_on = "housing"
         message = "Housing step completed successfully."
         return message          
 
@@ -524,6 +525,8 @@ class RoboticArmAssembly:
         str
             A message indicating the status of the wedge step.
         """        
+        self.step_working_on = "wedge"
+
         try:
             self.x1w, self.y1w, self.x2w, self.y2w, mask, mask1, mask2 = self.objectPlace('wedge')
 
@@ -551,7 +554,6 @@ class RoboticArmAssembly:
             ############################
             #return f"Error: wedge object placement is not done correctly."
     
-        self.step_working_on = "wedge"
         
         return "Wedging step completed successfully."
                 
@@ -563,7 +565,8 @@ class RoboticArmAssembly:
         -------
         str
             A message indicating the status of the spring step.
-        """        
+        """
+        self.step_working_on = "spring"        
         try:
             self.x1s, self.y1s, self.x2s, self.y2s, a, b, c = self.objectPlace('spring')
 
@@ -584,7 +587,6 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during spring movement"
                         
-        self.step_working_on = "spring"
         return "Spring step completed successfully."
 
     def perform_cap_step(self):
@@ -596,6 +598,8 @@ class RoboticArmAssembly:
         str
             A message indicating the status of the cap step.
         """        
+        self.step_working_on = "cap"
+
         try:
             self.x1c, self.y1c, self.x2c, self.y2c, a, b, c = self.objectPlace('cap')
 
@@ -627,11 +631,11 @@ class RoboticArmAssembly:
         threading.Thread(self.voice_control.text_to_speech("Certainly! Resuming the assembly process from where I left off!")).start()
 
         # Define the order of assembly steps
-        assembly_steps = self.params_json.get("assembly_steps", [])
-        #assembly_steps = ["housing", "wedge", "spring"]
-        last_completed_index = assembly_steps.index(step_working_on) if step_working_on in assembly_steps else -1
+        #assembly_steps = self.params_json.get("assembly_steps", [])
+        assembly_steps = ["housing", "wedge", "spring", "cap"]
+        current_index = assembly_steps.index(step_working_on) if step_working_on in assembly_steps else -1
         
-        for step in assembly_steps[last_completed_index + 1:]:
+        for step in assembly_steps[current_index:]:
             threading.Thread(self.voice_control.text_to_speech("Performing " + step + " assembly process.")).start()
             message = getattr(self, f"perform_{step}_step")()
             if 'error' in message.lower():
@@ -647,7 +651,7 @@ class RoboticArmAssembly:
         :param robot_name: name of the robot
         """      
 
-        threading.Thread(self.voice_control.text_to_speech("Sure Thing! First, let me go through calibration process. Press ESC wehn calibration is completed.")).start()
+        threading.Thread(self.voice_control.text_to_speech("Sure! First, let me go through calibration process. Press ESC wehn calibration is completed.")).start()
         self.xQRPix,self.yQRPix = self.detect_qr_code_from_camera()
 
         self.xQRarm=293

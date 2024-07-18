@@ -32,7 +32,7 @@ class RoboticArmFunctions:
 
         Instructions:
         1. If the task description specifies that certain assembly steps will be completed by humans or should be skipped, remove those steps from the "assembly_steps" list.
-        2. Ensure the remaining steps in the "assembly_steps" list reflect the order in which the assembly should proceed based on the task description.
+        2. Ensure the remaining steps in the "assembly_steps" list reflect the order in which the cable shark assembly should proceed based on the task description.
         3. The "assembly_functions" list should remain unchanged unless explicitly stated in the task description.
         4. Do not include any additional explanations or descriptions in the output, only provide the modified parameter file in JSON format.
 
@@ -80,7 +80,6 @@ class RoboticArmFunctions:
         generated_params = self._generated_params(f"Generate the parameters using the SOP and parameter information:\n{task_description}")
         print(generated_params)
 
-        time.sleep(100)
         # Step 3: Execute the generated code
         # Parse the response to check sufficiency and either generate task or ask for more information
         try:
