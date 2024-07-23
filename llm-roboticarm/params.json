@@ -10,7 +10,7 @@
     "wedge_z": 176,
     "spring_z": 175,
     "cap_z": 177,
-    "camera_z": 465,
+    "camera_z": 455,
     "object_z": 175,
     "camera_bottom_left": [410,-255],
     "camera_bottom_right": [410,255],
@@ -24,4 +24,5 @@
     "camera_y_pixelBounds": [0,480],
     "arm_x_angle": 180,
     "camera_step": 50
+    
   }
