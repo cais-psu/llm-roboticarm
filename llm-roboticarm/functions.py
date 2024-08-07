@@ -9,8 +9,9 @@ from langchain_openai import ChatOpenAI
 sys.path.append(os.path.join(os.path.dirname(__file__), 'xArm-Python-SDK-master'))
 import general_utils
 from function_analyzer import FunctionAnalyzer
-from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS
+from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS, LOG_RETRIEVAL_INSTRUCTIONS
 import robotic_arm_assembly
+from datetime import datetime
 
 class RoboticArmFunctions:
     def __init__(self, sop_file, params_file):
@@ -21,7 +22,6 @@ class RoboticArmFunctions:
         self.params_information = general_utils.load_json_data(params_file)
 
         self.log_file_path = 'llm-roboticarm/log/xArm_actions.log'
-        self.log_handler = RAGHandler(self.log_file_path, 'txt', self.openai_api_key)
 
         
     def _generated_params(self, task_description) -> str:
@@ -170,8 +170,9 @@ class RoboticArmFunctions:
 
         :param status_query: The status query to provide status for
         """
-
-        message = self.log_handler.retrieve(status_query)
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.log_handler = RAGHandler(self.log_file_path, 'txt', self.openai_api_key)
+        message = self.log_handler.retrieve(f"Status Query: {status_query}, Current Time: {current_time}, LOG_RETRIEVAL_INSTRUCTIONS: {LOG_RETRIEVAL_INSTRUCTIONS}")
 
         result = {
             "func_type": "info",

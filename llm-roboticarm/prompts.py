@@ -21,3 +21,15 @@ If starting from the beginning or if the step is not specific, give general asse
 Include safety instructions for the human operator on how to behave during the assembly process.
 Ensure all information is clear and within 100 words.
 """
+
+LOG_RETRIEVAL_INSTRUCTIONS = """\
+Retrieve the current status and behavior of the robot based on the provided status query and the latest log entries.
+- If the status query includes to the current activity or status, retrieve the last entry from the log.
+- Compare the timestamp of the last log entry with the current time. If they are close, it indicates the robot is still performing that action.
+- If the last log entry indicates an action was completed, it means the robot is idle and ready for new operations.
+- Convert the timestamp to a natural language format (e.g., 'just now', '5 minutes ago').
+- If multiple recent log entries are relevant, summarize them concisely.
+- Ensure all information is clear, concise, and within 30 words.
+- Standardize the format of the output for consistency.
+- Include any additional context that might be relevant for understanding the current status (e.g., previous actions, time elapsed since last action).
+"""

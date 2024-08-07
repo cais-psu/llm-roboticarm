@@ -25,6 +25,9 @@ import openai
 from rag_handler import RAGHandler
 from prompts import VERBAL_UPDATES_INSTRUCTIONS
 import asyncio
+import functools
+import sys
+from datetime import datetime, timedelta
 
 #######################################################
 
@@ -34,7 +37,7 @@ class RoboticArmAssembly:
     """    
     def __init__(self, params_json):
         ############################ Set up agent-specific logger ############################
-        self.logger = logging.getLogger(f'agent_xArm')
+        self.logger = logging.getLogger(f'action_xArm')
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
         file_handler = logging.FileHandler(f'llm-roboticarm/log/xArm_actions.log', mode='a')
@@ -69,7 +72,58 @@ class RoboticArmAssembly:
             self.params_json = json.loads(params_json)
         else:
             self.params_json = params_json
-        
+            
+        # Initialize attributes to track the last logged line and timestamp
+        self.last_logged_line = None
+        self.last_logged_func = None
+        self.inside_loop = False
+
+    def trace_lines(self, frame, event, arg):
+        if event == 'line':
+            code = frame.f_code
+            lineno = frame.f_lineno
+            filename = code.co_filename
+            name = code.co_name
+
+            # Ensure we only log lines from the current file
+            if filename != __file__:
+                return self.trace_lines
+
+            # Detect if we're entering a loop by checking the function name
+            if name == self.last_logged_func:
+                self.inside_loop = True
+            else:
+                self.inside_loop = False
+
+            # Log the line execution if it is not inside a loop
+            if not self.inside_loop:
+                self.logger.info(f'Executing line {lineno} in {name} of {filename}')
+                self.last_logged_line = lineno
+                self.last_logged_func = name
+
+        return self.trace_lines
+
+    @staticmethod
+    def log_execution(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Ensure last_logged_line and last_logged_func are initialized for the instance
+            if not hasattr(self, 'last_logged_line'):
+                self.last_logged_line = None
+            if not hasattr(self, 'last_logged_func'):
+                self.last_logged_func = None
+            if not hasattr(self, 'inside_loop'):
+                self.inside_loop = False
+
+            sys.settrace(lambda frame, event, arg: self.trace_lines(frame, event, arg))
+            try:
+                self.logger.info(f"Running {func.__name__}...")
+                result = func(self, *args, **kwargs)
+                self.logger.info(f"Completed {func.__name__}.")
+            finally:
+                sys.settrace(None)  # Ensure the trace is disabled after function execution
+            return result
+        return wrapper
 
     def detect_qr_code_from_camera(self):
         """
@@ -257,7 +311,7 @@ class RoboticArmAssembly:
             # Clean up: Release the capture object and close any OpenCV windows
             cap.release()
             cv2.destroyAllWindows()
-                  
+
     def distinguish_orientation(self, image):
         """
         Distinguishes the orientation of an object in the image using edge detection.
@@ -337,6 +391,7 @@ class RoboticArmAssembly:
         cap.release()
         cv2.destroyAllWindows(name)
 
+    @log_execution
     def housing_movement(self):
         """
         Executes the movement for placing the housing part using the robotic arm.
@@ -381,7 +436,7 @@ class RoboticArmAssembly:
                 code = self.arm.set_position(*[-80, -337.3, 213.5, 180.0, 0.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-
+    @log_execution
     def wedge_movement(self):
         """
         Executes the movement for placing the wedge part using the robotic arm.
@@ -422,7 +477,7 @@ class RoboticArmAssembly:
 
                 code = self.arm.set_position(*[240, -340, 240, 180.0, 0.0, 0.0], speed=self.params['speed'], mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-
+    @log_execution
     def spring_movement(self):
         """
         Executes the movement for placing the spring part using the robotic arm.
@@ -457,7 +512,7 @@ class RoboticArmAssembly:
                 code = self.arm.set_position(*[-81.8, -330.8, 250, 180.0, -90.0, 0.0], speed=self.params['speed'],
                                         mvacc=self.params['acc'],
                                         radius=-1.0, wait=True)
-
+    @log_execution
     def cap_movement(self):
         """
         Executes the movement for placing the cap part using the robotic arm.
@@ -496,6 +551,7 @@ class RoboticArmAssembly:
             self.params['quit'] = True
             self.pprint('set_position, code={}'.format(code))
 
+    @log_execution
     def perform_housing_step(self):
         """
         Performs the housing step of the assembly process.
@@ -516,7 +572,6 @@ class RoboticArmAssembly:
         
         try:
             self.x1h, self.y1h, self.x2h, self.y2h, a, b, c = self.objectPlace('housing')
-            self.logger.info("housing object identified")
             self.xhouse = int(self.x1h + self.x2h)
             self.xhouse = self.xhouse /2
 
@@ -540,6 +595,7 @@ class RoboticArmAssembly:
         message = "Housing step completed successfully."
         return message          
 
+    @log_execution
     def perform_wedge_step(self):
         """
         Performs the wedge step of the assembly process.
@@ -584,7 +640,8 @@ class RoboticArmAssembly:
         message = "Wedging step completed successfully."
         self.logger.info(message)
         return message
-                
+
+    @log_execution                
     def perform_spring_step(self):
         """
         Performs the spring step of the assembly process.
@@ -622,6 +679,7 @@ class RoboticArmAssembly:
         self.logger.info(message)
         return message
 
+    @log_execution
     def perform_cap_step(self):
         """
         Performs the cap step of the assembly process.
@@ -668,6 +726,7 @@ class RoboticArmAssembly:
         message = self.sop_handler.retrieve(f"Assembly step working on: {step_working_on}." + VERBAL_UPDATES_INSTRUCTIONS)
         threading.Thread(target=self.voice_control.text_to_speech, args=(message, 0)).start()
 
+    @log_execution
     def robotic_assembly(self, step_working_on: str):
         """
         Starts the robotic assembly process by performing each step sequentially.
@@ -772,6 +831,8 @@ class RoboticArmAssembly:
 
         return self.step_working_on, message
     '''
+
+    @log_execution    
     def find_available_cameras(self):
         """
         Attempts to open cameras within a range to see which indices are available.
@@ -789,7 +850,8 @@ class RoboticArmAssembly:
                 available_cameras.append(index)
                 cap.release()
         return available_cameras
-
+    
+    @log_execution
     def count_objects(self, objectType):
         """
         Counts the number of objects of a specified type using the camera and a trained model.
@@ -838,7 +900,8 @@ class RoboticArmAssembly:
                 cap.release()
                 cv2.destroyAllWindows()
                 return
-        
+            
+    @log_execution        
     def count_and_display_housing(self):
         """
         Counts and displays the housing objects using the camera and a trained model.

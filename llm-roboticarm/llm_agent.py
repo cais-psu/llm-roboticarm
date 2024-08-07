@@ -40,18 +40,28 @@ class LlmAgent:
 
     ) -> None:
         ############################ Set up agent-specific logger ############################
-        self.logger = logging.getLogger(f'agent_{name}')
-        self.logger.setLevel(logging.INFO)
-        self.logger.propagate = False
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_actions.log', mode='a')
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
-        ######################################################################################
+        # Logger for agent-specific logs
+        self.logger_agent = logging.getLogger(f'agent_{name}')
+        self.logger_agent.setLevel(logging.INFO)
+        self.logger_agent.propagate = False
+        agent_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_agent.log', mode='a')
+        agent_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger_agent.addHandler(agent_file_handler)
+        
+        # Logger for xArm action logs
+        self.logger_action = logging.getLogger(f'action_{name}')
+        self.logger_action.setLevel(logging.INFO)
+        self.logger_action.propagate = False
+        actions_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_actions.log', mode='a')
+        actions_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [ACTION] - %(message)s'))
+        self.logger_action.addHandler(actions_file_handler)
 
+        # Console handler for both loggers
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger_agent.addHandler(console_handler)
+        self.logger_action.addHandler(console_handler)
+        ######################################################################################
         self.model = "gpt-4o" if model is None else model
         self.name = name
         self.annotation = annotation
@@ -77,13 +87,15 @@ class LlmAgent:
                 self.instructions = PROMPT_ROBOT_AGENT + BASE_INSTRUCTIONS + instructions
             else:
                 self.instructions = PROMPT_ROBOT_AGENT + BASE_INSTRUCTIONS
-            self.logger.info(f"Using function info:\n{json.dumps(self.function_info, indent=4)}")
         else:
             self.instructions = PROMPT_ROBOT_AGENT
 
-        self.logger.info(
+        self.logger_agent.info(
             f"Initialized with instructions:\n{self.instructions}"
         )
+
+        # Log that the xArm agent has been initialized and the status is idle
+        self.logger_action.info("The xArm has been initialized and the status is idle.")
 
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
         self.inbox.append([(sender, message)])
@@ -123,7 +135,7 @@ class LlmAgent:
         """ Turn a message history as it is stored in the query into a prompt history to be continued by the LLM
         Doing this as plain text allows having several agents in the conversation.
         """
-        self.logger.info(f"{msg_history=}")
+        self.logger_agent.info(f"{msg_history=}")
         messages = "\n".join([" The requester is " + m[0] + ". The requester " + m[0] + " sent this message: " + m[1] for m in msg_history])
         msg_history_as_text = (
             #"This is a conversation history between human and robot:\n"
@@ -163,9 +175,9 @@ class LlmAgent:
                         function_call="auto",
                     )
             except openai.APIError as e:
-                self.logger.error(e)
+                self.logger_agent.error(e)
             except openai.RateLimitError as e:
-                self.logger.error(e)
+                self.logger_agent.error(e)
 
         return response    
 
@@ -191,9 +203,9 @@ class LlmAgent:
                         function_call=function_call,
                     )
             except openai.APIError as e:
-                self.logger.error(e)
+                self.logger_agent.error(e)
             except openai.RateLimitError as e:
-                self.logger.error(e)
+                self.logger_agent.error(e)
 
         return response    
     
@@ -210,9 +222,9 @@ class LlmAgent:
             msgs.append({"role": "system", "content": self.instructions})
         msgs.append({"role": "user", "content": prompt})
 
-        self.logger.info(f"Msgs: {msgs}")
+        self.logger_agent.info(f"Msgs: {msgs}")
         response = self.__get_function_call_response(msgs=msgs, model=model_, with_functions=with_functions, temperature=temperature)
-        self.logger.info(response)
+        self.logger_agent.info(response)
 
         msgs.append(response.choices[0].message)
 
@@ -221,15 +233,15 @@ class LlmAgent:
                 func = "user"
                 message = response.choices[0].message.content
                 args = {"sender":"","message": message}
-                self.logger.info(f"Function call: {func}; Arguments: {args}")
+                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
             else:
                 func = response.choices[0].message.function_call.name
                 args = json.loads(response.choices[0].message.function_call.arguments)
-                self.logger.info(f"Function call: {func}; Arguments: {args}")
+                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
                 # execute python actionable functions
                 func_res = self.executables[func](**args)
 
-            self.logger.info(f"Function returned `{func_res}`.")
+            self.logger_agent.info(f"Function returned `{func_res}`.")
 
         except KeyError:
             # This exception is raised when there's no function call in the response
@@ -238,10 +250,10 @@ class LlmAgent:
                     #Clear the completed task
                     self.tasks.clear()
                 else:
-                    self.logger.info("No further function call to execute")
+                    self.logger_agent.info("No further function call to execute")
 
         except Exception as e:
-            self.logger.error(f"An error occurred during function execution: {e}")            
+            self.logger_agent.error(f"An error occurred during function execution: {e}")            
 
         return func_res, msgs
 
@@ -261,9 +273,10 @@ class LlmAgent:
                     "role": "function",
                     "name": "xArm",
                     "content": func_res['content'],
+                    "status": "Idle"
                 }
                 msgs.append(func_msg)
-                self.logger.info(f"Msgs: {msgs}")
+                self.logger_agent.info(f"Msgs: {msgs}")
                 
                 function_call = {"name": f"user"}
             else:
@@ -271,9 +284,10 @@ class LlmAgent:
                     "role": "function",
                     "name": "xArm",
                     "content": f"{func_res['content']}, step_working_on: {func_res['step_working_on']}",
+                    "status": "Idle"
                 }
                 msgs.append(func_msg)
-                self.logger.info(f"Msgs: {msgs}")
+                self.logger_agent.info(f"Msgs: {msgs}")
                 
                 function_call = {"name": f"user"}
         else:
@@ -284,14 +298,14 @@ class LlmAgent:
                 "content": func_res['content'],
             }
             msgs.append(func_msg)
-            self.logger.info(f"Msgs: {msgs}")
+            self.logger_agent.info(f"Msgs: {msgs}")
             
             function_call = {"name": f"user"}
         self.msg_history_as_text += self._msg_history_to_prompt([(func_msg['name'], func_msg['content'])])
         
         # get response from LLM again
         response = self.__get_message_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
-        self.logger.info(response)
+        self.logger_agent.info(response)
         msgs.append(response.choices[0].message)
         
         try:
@@ -305,16 +319,16 @@ class LlmAgent:
                     message = response.choices[0].message.content
                     args = {"sender": "xArm", "message": message}
 
-                self.logger.info(f"Function call: {func}; Arguments: {args}")
+                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
             else:
                 func = response.choices[0].message.function_call.name
                 args = json.loads(response.choices[0].message.function_call.arguments)
-                self.logger.info(f"Function call: {func}; Arguments: {args}")
+                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
 
             # execute python 'message' functions
             func_res = self.message_executables[func](**args)
 
-            self.logger.info(f"Function returned `{func_res}`.")
+            self.logger_agent.info(f"Function returned `{func_res}`.")
 
         except KeyError:
             if response.choices[0].finish_reason == "stop":
@@ -322,15 +336,15 @@ class LlmAgent:
                     #Clear the completed task
                     self.tasks.clear()
                 else:
-                    self.logger.info("No further function call to execute")
+                    self.logger_agent.info("No further function call to execute")
         except Exception as e:
-            self.logger.error(f"An error occurred during function execution: {e}")  
+            self.logger_agent.error(f"An error occurred during function execution: {e}")  
 
     def process_inbox(self):
         def handle_message(sender, content):
             inbox_identifier = general_utils.get_inbox_identifier(sender, content)
             if self.task_states.get(inbox_identifier) not in ['running', 'completed']:
-                self.logger.info(f"Running agent: {self.name}")
+                self.logger_agent.info(f"Running agent: {self.name}")
                 self.task_states[inbox_identifier] = 'running'
 
                 self.msg_history_as_text += self._msg_history_to_prompt([(sender, content)])
@@ -341,7 +355,7 @@ class LlmAgent:
                     status = self.chat_after_function_execution(func_res, msgs)
                     self.task_states[inbox_identifier] = 'completed'
 
-                self.logger.info(f"Run for agent {self.name} done.")
+                self.logger_agent.info(f"Run for agent {self.name} done.")
 
         while True:
             if self.inbox:
@@ -372,7 +386,7 @@ class User:
         self.logger = logging.getLogger(f'agent_{self.name}')
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_actions.log', mode='a')
+        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_agent.log', mode='a')
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
