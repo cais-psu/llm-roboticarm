@@ -253,19 +253,7 @@ class LlmAgent:
         elif with_functions:
             model_ = self.model
 
-        '''
-        # set function info and messages to get response from LLM
-        func_msg = {
-            "role": "function",
-            "name": "xArm",
-            "content": func_res['content'],
-        }
-        msgs.append(func_msg)
-        self.logger.info(f"Msgs: {msgs}")
-        
-        function_call = {"name": f"user"}
-        '''
-                # Manufacturing process is executed and completed from the previous chat function
+        # Manufacturing process is executed and completed from the previous chat function
         if func_res['func_type'] == "task":
             if func_res['step_working_on'] == "completed":
                 # get response from LLM

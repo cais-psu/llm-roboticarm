@@ -20,6 +20,11 @@ import llm_agent
 from pyzbar.pyzbar import decode
 import json
 from voice_control import VoiceControl
+import logging
+import openai
+from rag_handler import RAGHandler
+from prompts import VERBAL_UPDATES_INSTRUCTIONS
+import asyncio
 
 #######################################################
 
@@ -28,6 +33,22 @@ class RoboticArmAssembly:
     A class to represent the robotic arm assembly process.
     """    
     def __init__(self, params_json):
+        ############################ Set up agent-specific logger ############################
+        self.logger = logging.getLogger(f'agent_xArm')
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        file_handler = logging.FileHandler(f'llm-roboticarm/log/xArm_actions.log', mode='a')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        ######################################################################################
+
+        self.openai_api_key=os.getenv("OPENAI_API_KEY")
+        self.sop_handler = RAGHandler('llm-roboticarm/initialization/robots/specification/xArm_SOP.pdf', 'pdf', self.openai_api_key)
+
         self.arm = XArmAPI('192.168.1.240', baud_checkset=False)
         self.variables = {}
         self.params = {
@@ -72,6 +93,7 @@ class RoboticArmAssembly:
             if cv2.waitKey(1) & 0xFF == 27:
                 break
 
+        
         return (self.x+self.w//2,self.y+self.w//2)
 
     def cameraCheck(self, assembly_step):
@@ -621,13 +643,72 @@ class RoboticArmAssembly:
                         
         self.step_working_on = "completed"
         return "Cap step completed successfully."
-        
+
+    def _verbal_updates(self, step_working_on: str):
+        """
+        Retrieve safety information for starting the process and provide verbal updates.
+        """
+        message = self.sop_handler.retrieve(f"Assembly step working on: {step_working_on}." + VERBAL_UPDATES_INSTRUCTIONS)
+        threading.Thread(target=self.voice_control.text_to_speech, args=(message, 0)).start()
+
+    def robotic_assembly(self, step_working_on: str):
+        """
+        Starts the robotic assembly process by performing each step sequentially.
+        If the step is not part of the assembly steps, it starts from the beginning.
+
+        :param step_working_on: name of the assembly step that is being worked on
+        """
+
+        # Run verbal updates asynchronously
+        threading.Thread(target=self._verbal_updates, args=(step_working_on,)).start()
+
+        # Define the order of assembly steps
+        # assembly_steps = ["housing", "wedge", "spring", "cap"]
+        assembly_steps = self.params_json.get("assembly_steps", [])
+
+        # Determine if the process should start from the beginning
+        start_from_beginning = step_working_on not in assembly_steps
+
+        # Voice feedback for starting/resuming the process
+        if start_from_beginning:
+            self.logger.info("Starting the robotic assembly process from the beginning")
+            step_working_on = assembly_steps[0]  # Start from the first step
+
+            #threading.Thread(self.voice_control.text_to_speech("Sure! First, let me go through calibration process. Press ESC when calibration is completed.")).start()
+            self.xQRPix, self.yQRPix = self.detect_qr_code_from_camera()
+            self.xQRarm = 293
+            self.yQRarm = -130
+
+            #threading.Thread(self.voice_control.text_to_speech("The robot is now preparing to execute the assembly process. For your safety, please keep a safe distance from the robot.")).start()
+        else:
+            self.logger.info("Resuming assembly operation from the last step")
+            #threading.Thread(self.voice_control.text_to_speech("Certainly! Resuming the assembly process from where I left off!")).start()
+
+        # Get the current index of the step
+        current_index = assembly_steps.index(step_working_on)
+
+        # Perform the assembly steps
+        for step in assembly_steps[current_index:]:
+            #threading.Thread(self.voice_control.text_to_speech("Performing " + step + " assembly process.")).start()
+            message = getattr(self, f"perform_{step}_step")()
+            print(message)
+            if 'error' in message.lower():
+                return self.step_working_on, message
+
+        self.step_working_on = "completed"
+        message = "All steps for the assembly are successfully completed!"
+
+        return self.step_working_on, message
+
+    '''
     def resume_operation_from_last_step(self, step_working_on: str):
         """
         Resumes the assembly process from the last completed step.
 
         :param step_working_on: name of the assembly step that is working on
+        :param sop_handler: parses 'self.sop_handler' class that contains information on SOP
         """
+        self.logger.info("Resuming assembly operation from the last step")
         threading.Thread(self.voice_control.text_to_speech("Certainly! Resuming the assembly process from where I left off!")).start()
 
         # Define the order of assembly steps
@@ -643,17 +724,19 @@ class RoboticArmAssembly:
 
         self.step_working_on = "completed"
         return self.step_working_on, "All steps for the assembly are successfully completed."
-
-    def start_robotic_assembly(self, robot_name: str = None):
+    
+    def start_robotic_assembly(self, step_working_on: str):
         """
         Starts the robotic assembly process by performing each step sequentially.
 
-        :param robot_name: name of the robot
+        :param step_working_on: name of the assembly step that is working on
         """      
+        message = self.sop_handler.retrieve("retrieve safety information for starting robotic assembly")
+        print(message)
 
         threading.Thread(self.voice_control.text_to_speech("Sure! First, let me go through calibration process. Press ESC wehn calibration is completed.")).start()
-        self.xQRPix,self.yQRPix = self.detect_qr_code_from_camera()
 
+        self.xQRPix,self.yQRPix = self.detect_qr_code_from_camera()
         self.xQRarm=293
         self.yQRarm=-130
 
@@ -670,7 +753,7 @@ class RoboticArmAssembly:
         message = "Cable shark assembly process is completed successfully!"
 
         return self.step_working_on, message
-    
+    '''
     def find_available_cameras(self):
         """
         Attempts to open cameras within a range to see which indices are available.
@@ -787,5 +870,7 @@ if __name__ == "__main__":
 
     assembly = RoboticArmAssembly(params_information)
     #assembly.cameraCheck("wedge")
-    assembly.start_robotic_assembly("xarm")
+    #assembly.robotic_assembly("none")
+    assembly.robotic_assembly(step_working_on="None")
+
     #assembly.count_and_display_housing()

@@ -1,4 +1,4 @@
 {
     "assembly_steps": ["housing", "wedge", "spring", "cap"],
-    "assembly_functions": ["start_robotic_assembly", "resume_operation_from_last_step"]
+    "assembly_functions": ["robotic_assembly"]
 }

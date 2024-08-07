@@ -8,6 +8,7 @@ import pyaudio
 import struct
 import wave
 from pvrecorder import PvRecorder
+import asyncio
 
 class VoiceControl:
     def __init__(self):
@@ -15,6 +16,7 @@ class VoiceControl:
         self.access_key = "FrMaUJNG+1dzKVWOW4J06mE81bkd6ao6vseEBG5iJ2AeaLqp/gFqIQ=="  # Picovoice access key
         self.start_keyword_path = "llm-roboticarm/voice_keywords/hello_xarm_wakeword.ppn"  # Path to your custom start keyword model
         self.stop_keyword_path = "llm-roboticarm/voice_keywords/end_of_command_wakeword.ppn"  # Path to your custom stop keyword model
+        self.lock = threading.Lock()
 
         # Load the OpenAI API key
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -53,43 +55,45 @@ class VoiceControl:
         except Exception as e:
             print(f"Failed to transcribe audio: {str(e)}")
             return None
-
+        
     def text_to_speech(self, message, delay=0):
-        time.sleep(delay)
+        time.sleep(delay)  # Use time.sleep for blocking sleep
         file_path = "response.mp3"
 
-        # Initialize Pygame mixer
-        pygame.mixer.init()
-        self.stop_and_unload_mixer()
+        # Lock for thread safety
+        with self.lock:
+            # Initialize Pygame mixer
+            pygame.mixer.init()
+            self.stop_and_unload_mixer()
 
-        # Check if the file already exists and delete it
-        if os.path.exists(file_path):
-            time.sleep(1)
-            os.remove(file_path)
+            # Check if the file already exists and delete it
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
-        try:
-            soundoutput = openai.audio.speech.create(
-                model="tts-1",
-                voice="onyx",
-                input=message
-            )
-            soundoutput.stream_to_file("response.mp3")
-            self.play_mp3("response.mp3")
-        except Exception as e:
-            print(f"Failed to convert from text to speech: {str(e)}")
-            return None
-
+            try:
+                soundoutput = openai.audio.speech.create(
+                    model="tts-1",
+                    voice="onyx",
+                    input=message
+                )
+                soundoutput.stream_to_file(file_path)
+                self.play_mp3(file_path)
+                        
+            except Exception as e:
+                print(f"Failed to convert from text to speech: {str(e)}")
+                return None
+        
     def play_mp3(self, file_path):
         pygame.mixer.init()
         pygame.mixer.music.load(file_path)
         pygame.mixer.music.play()
         while pygame.mixer.music.get_busy():
-            pygame.time.Clock().tick(10)
+            time.sleep(0.1)
 
     def stop_and_unload_mixer(self):
-        # Stop any currently playing music and unload it to free the file.
-        pygame.mixer.music.stop()
-        pygame.mixer.music.unload()
+        if pygame.mixer.get_init():
+            pygame.mixer.music.stop()
+            pygame.mixer.quit()
 
     def record_audio(self):
         recorder = PvRecorder(device_index=self.device_index, frame_length=self.frame_length)

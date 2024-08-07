@@ -11,6 +11,7 @@ import general_utils
 from function_analyzer import FunctionAnalyzer
 from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS
 import robotic_arm_assembly
+
 class RoboticArmFunctions:
     def __init__(self, sop_file, params_file):
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
@@ -160,7 +161,20 @@ class RoboticArmFunctions:
         
         return json_content
 
+    def provide_status(self, query: str) -> str:
+        """
+        This function provide current status and what it has been doing based on retrieving log data.
 
+        :param query: The query to provide information for
+        """
+        message = self.sop_handler.retrieve(query)
+
+        result = {
+            "func_type": "status",
+            "content": message,
+        }
+        return result
+    
     def provide_information_or_message(self, query: str) -> str:
         """
         This function provide information or message based on SOP using the RAG handler.
