@@ -19,7 +19,10 @@ class RoboticArmFunctions:
         self.sop_handler = RAGHandler(sop_file, 'pdf', self.openai_api_key)
         self.sop_information = None
         self.params_information = general_utils.load_json_data(params_file)
-        print(self.params_information)
+
+        self.log_file_path = 'llm-roboticarm/log/xArm_actions.log'
+        self.log_handler = RAGHandler(self.log_file_path, 'txt', self.openai_api_key)
+
         
     def _generated_params(self, task_description) -> str:
         """
@@ -161,16 +164,17 @@ class RoboticArmFunctions:
         
         return json_content
 
-    def provide_status(self, query: str) -> str:
+    def provide_status(self, status_query: str) -> str:
         """
-        This function provide current status and what it has been doing based on retrieving log data.
+        This function provides the current status and what the robot has been doing based on retrieving log history data.
 
-        :param query: The query to provide information for
+        :param status_query: The status query to provide status for
         """
-        message = self.sop_handler.retrieve(query)
+
+        message = self.log_handler.retrieve(status_query)
 
         result = {
-            "func_type": "status",
+            "func_type": "info",
             "content": message,
         }
         return result

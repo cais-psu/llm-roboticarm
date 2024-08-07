@@ -19,7 +19,7 @@ class RAGHandler:
         file_path : str
             The path to the file to be processed.
         file_type : str
-            The type of the file ('pdf' or 'py').
+            The type of the file ('pdf' or 'txt').
         api_key : str
             The API key for accessing the OpenAI service.
         """
@@ -49,22 +49,22 @@ class RAGHandler:
             print(f"An error occurred while reading the PDF: {e}")
         return text
 
-    def _extract_text_from_py(self):
+    def _extract_text_from_txt(self):
         text = ''
         try:
             with open(self.file_path, 'r') as file:
                 text = file.read()
         except Exception as e:
-            print(f"An error occurred while reading the Python file: {e}")
+            print(f"An error occurred while reading the text file: {e}")
         return text
 
     def _extract_text(self):
         if self.file_type == 'pdf':
             return self._extract_text_from_pdf()
-        elif self.file_type == 'py':
-            return self._extract_text_from_py()
+        elif self.file_type == 'txt':
+            return self._extract_text_from_txt()
         else:
-            raise ValueError("Unsupported file type. Only 'pdf' and 'py' files are supported.")
+            raise ValueError("Unsupported file type. Only 'pdf' and 'txt' files are supported.")
 
     def _split_text_into_chunks(self, text):
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)

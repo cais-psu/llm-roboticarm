@@ -511,11 +511,12 @@ class RoboticArmAssembly:
             self.count_and_display_housing()
         except:
             message = f"Error: the housing object is overlapping"
+            self.logger.error(message)
             return message            
         
         try:
             self.x1h, self.y1h, self.x2h, self.y2h, a, b, c = self.objectPlace('housing')
-            
+            self.logger.info("housing object identified")
             self.xhouse = int(self.x1h + self.x2h)
             self.xhouse = self.xhouse /2
 
@@ -526,18 +527,19 @@ class RoboticArmAssembly:
             self.yH = self.yQRarm + (self.xhouse - self.xQRPix) * 0.64            
         except:
             message = f"Error: the housing object was not detected"
+            self.logger.error(message)
             return message
 
         try:
             self.housing_movement()
         except Exception as e:
             message = f"Error {e}: there was an error during the housing movement"
+            self.logger.error(message)
             return message
                     
         message = "Housing step completed successfully."
         return message          
 
-        
     def perform_wedge_step(self):
         """
         Performs the wedge step of the assembly process.
@@ -561,12 +563,16 @@ class RoboticArmAssembly:
             self.xW = self.xQRarm + (self.ywedge - self.yQRPix) * 0.65
             self.yW = self.yQRarm + (self.xwedge - self.xQRPix) * 0.64
         except:
-            return f"Error: during wedge object placement detection"
+            error_message = f"Error: during wedge object placement detection"
+            self.logger.error(error_message)
+            return error_message
 
         try:
             self.wedge_movement()
         except Exception as e:
-            return f"Error {e} during wedge movement"
+            error_message = f"Error {e} during wedge movement"
+            self.logger.error(error_message)            
+            return error_message
                         
         #try:
             #self.cameraCheck("wedge")
@@ -575,9 +581,9 @@ class RoboticArmAssembly:
             #self.step_working_on = "wedge"
             ############################
             #return f"Error: wedge object placement is not done correctly."
-    
-        
-        return "Wedging step completed successfully."
+        message = "Wedging step completed successfully."
+        self.logger.info(message)
+        return message
                 
     def perform_spring_step(self):
         """
@@ -602,14 +608,19 @@ class RoboticArmAssembly:
             self.yS = self.yQRarm + (self.xspring - self.xQRPix) * 0.64
         except:
             message = f"Error: the spring object was not detected"
+            self.logger.error(message)
             return message
 
         try:
             self.spring_movement()
         except Exception as e:
-            return f"Error {e} during spring movement"
-                        
-        return "Spring step completed successfully."
+            error_message = f"Error {e} during spring movement"
+            self.logger.error(error_message)
+            return error_message
+
+        message = "Spring step completed successfully."
+        self.logger.info(message)
+        return message
 
     def perform_cap_step(self):
         """
@@ -634,15 +645,21 @@ class RoboticArmAssembly:
             self.xC = self.xQRarm + (self.ycap - self.yQRPix) * 0.65
             self.yC = self.yQRarm + (self.xcap - self.xQRPix) * 0.64
         except:
-            return f"Error: {e} during cap object placement detection"
+            error_message = f"Error: {e} during cap object placement detection"
+            self.logger.error(error_message)
+            return error_message
 
         try:
             self.cap_movement()
         except Exception as e:
-            return f"Error {e} during cap movement"
+            error_message = f"Error {e} during cap movement"
+            self.logger.error(error_message)
+            return error_message
                         
         self.step_working_on = "completed"
-        return "Cap step completed successfully."
+        message = "Cap step completed successfully."
+        self.logger.info(message)
+        return message
 
     def _verbal_updates(self, step_working_on: str):
         """
@@ -681,7 +698,7 @@ class RoboticArmAssembly:
 
             #threading.Thread(self.voice_control.text_to_speech("The robot is now preparing to execute the assembly process. For your safety, please keep a safe distance from the robot.")).start()
         else:
-            self.logger.info("Resuming assembly operation from the last step")
+            self.logger.info(f"Starting the assembly operation from the {assembly_steps} step")
             #threading.Thread(self.voice_control.text_to_speech("Certainly! Resuming the assembly process from where I left off!")).start()
 
         # Get the current index of the step
@@ -690,14 +707,15 @@ class RoboticArmAssembly:
         # Perform the assembly steps
         for step in assembly_steps[current_index:]:
             #threading.Thread(self.voice_control.text_to_speech("Performing " + step + " assembly process.")).start()
+            self.logger.info(f"Performing the {step} step")
             message = getattr(self, f"perform_{step}_step")()
-            print(message)
+
             if 'error' in message.lower():
                 return self.step_working_on, message
 
         self.step_working_on = "completed"
         message = "All steps for the assembly are successfully completed!"
-
+        self.logger.info(message)
         return self.step_working_on, message
 
     '''
