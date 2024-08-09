@@ -267,7 +267,7 @@ class RoboticArmAssembly:
         cv2.destroyAllWindows(name)
 
     import json
-    with open('C:/Users/adeva/Downloads/llm-roboticarm/llm-roboticarm/params.json','r') as file:
+    with open('C:/Users/jongh/projects/llm-roboticarm/llm-roboticarm/params.json','r') as file:
         data=json.load(file)
         data['housing_set']
         data['wedge_set']
@@ -403,8 +403,6 @@ class RoboticArmAssembly:
                 
     def perform_spring_step(self,coord_list):
         try:
-
-
             self.xspring = int(coord_list[0] + coord_list[2])
             self.xspring = self.xspring / 2
             # # #
@@ -427,8 +425,6 @@ class RoboticArmAssembly:
 
     def perform_cap_step(self,coord_list):
         try:
-
-
             self.xcap = int(coord_list[0] + coord_list[2])
             self.xcap = self.xcap / 2
 
@@ -537,7 +533,7 @@ class RoboticArmAssembly:
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local', force_reload=True)
         
         # Opens the camera
-        cap = cv2.VideoCapture(1)  # Change to 0 if you want to use the default camera
+        cap = cv2.VideoCapture(2)  # Change to 0 if you want to use the default camera
         
         object_counts = {}
         object_coords = {}
