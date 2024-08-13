@@ -12,22 +12,48 @@ import torch
 
 import tkinter as tk
 
+from rag_handler import RAGHandler
+from prompts import VERBAL_UPDATES_INSTRUCTIONS
+
 from xarmlib import version
 from xarmlib.wrapper import XArmAPI
 import math
 import pygame
+
 import llm_agent
+from voice_control import VoiceControl
+import functools
+
 from pyzbar.pyzbar import decode
 import pathlib
 from pathlib import Path
 pathlib.PosixPath=pathlib.WindowsPath
-
+import logging
 import torch
 import cv2
 #######################################################
 
 class RoboticArmAssembly:
-    def __init__(self):
+    def __init__(self, params_json):
+        """
+        A class to represent the robotic arm assembly process.
+        """    
+        ############################ Set up agent-specific logger ############################
+        self.logger = logging.getLogger(f'action_xArm')
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        file_handler = logging.FileHandler(f'llm-roboticarm/log/xArm_actions.log', mode='a')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        ######################################################################################
+
+        self.openai_api_key=os.getenv("OPENAI_API_KEY")
+        self.sop_handler = RAGHandler('llm-roboticarm/initialization/robots/specification/xArm_SOP.pdf', 'pdf', self.openai_api_key)
+
         self.arm = XArmAPI('192.168.1.240', baud_checkset=False)
         self.variables = {}
         self.a,self.base=self.arm.get_position()
@@ -47,8 +73,70 @@ class RoboticArmAssembly:
             'quit': False,
             'default_angles':[180,0,0]
         }
-        self.step_already_done = None
 
+        # Initial Position for detecting objects
+        self.arm.set_position(*[250,-150,445,180.0,0.0,0.0], speed=self.params['speed'], mvacc=self.params['acc'], radius=self.params['radius'], wait=self.params['wait'])
+
+        self.step_working_on = None
+        self.voice_control = VoiceControl()
+        # Load configuration from the JSON file
+        if isinstance(params_json, str):
+            self.params_json = json.loads(params_json)
+        else:
+            self.params_json = params_json
+
+        # Initialize attributes to track the last logged line and timestamp
+        self.last_logged_line = None
+        self.last_logged_func = None
+        self.inside_loop = False            
+
+    def trace_lines(self, frame, event, arg):
+        if event == 'line':
+            code = frame.f_code
+            lineno = frame.f_lineno
+            filename = code.co_filename
+            name = code.co_name
+
+            # Ensure we only log lines from the current file
+            if filename != __file__:
+                return self.trace_lines
+
+            # Detect if we're entering a loop by checking the function name
+            if name == self.last_logged_func:
+                self.inside_loop = True
+            else:
+                self.inside_loop = False
+
+            # Log the line execution if it is not inside a loop
+            if not self.inside_loop:
+                self.logger.info(f'Executing line {lineno} in {name} of {filename}')
+                self.last_logged_line = lineno
+                self.last_logged_func = name
+
+        return self.trace_lines
+
+    @staticmethod
+    def log_execution(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Ensure last_logged_line and last_logged_func are initialized for the instance
+            if not hasattr(self, 'last_logged_line'):
+                self.last_logged_line = None
+            if not hasattr(self, 'last_logged_func'):
+                self.last_logged_func = None
+            if not hasattr(self, 'inside_loop'):
+                self.inside_loop = False
+
+            sys.settrace(lambda frame, event, arg: self.trace_lines(frame, event, arg))
+            try:
+                self.logger.info(f"Running {func.__name__}...")
+                result = func(self, *args, **kwargs)
+                self.logger.info(f"Completed {func.__name__}.")
+            finally:
+                sys.settrace(None)  # Ensure the trace is disabled after function execution
+            return result
+        return wrapper
+    
     def detect_qr_code_from_camera(self):
         '''
         :detect_qr_code_from_camera() is used to find the pixel coordinates of the reference qr code
@@ -268,7 +356,7 @@ class RoboticArmAssembly:
         cap.release()
         cv2.destroyAllWindows(name)
 
-    with open('C:/Users/jongh/projects/llm-roboticarm/llm-roboticarm/params.json','r') as file:
+    with open('C:/Users/jongh/projects/llm-roboticarm/llm-roboticarm/initialization/robots/specification/params2.json','r') as file:
         data=json.load(file)
         data['housing_set']
         data['wedge_set']
@@ -277,10 +365,9 @@ class RoboticArmAssembly:
         data['housing_90']
         data['wedge_90']
         data['spring_90']
+        data['cap_90']
 
-    '''
-    
-    '''
+    #@log_execution
     def movement(self,bounding_box_coords,object_set,object_90,pixel_x_coord,pixel_y_coord):
         """
         :Performs the arm's movement to detected objects, gripping operation, and movement to the assembly area
@@ -310,9 +397,6 @@ class RoboticArmAssembly:
             else:
                 self.arm.set_position(*i, speed=self.params['speed'], mvacc=self.params['acc'], radius=self.params['radius'], wait=self.params['wait'])
 
-            
-
-
     def vision_check(self,object_type):
         '''
         :Finds the next piece in the assembly before picking is done
@@ -320,11 +404,6 @@ class RoboticArmAssembly:
         a,base=self.arm.get_position()
         self.arm.set_position(*(self.data['camera_bottom_left']+[self.params['camera_z']]+self.params['default_angles']), speed=self.params['speed'], mvacc=self.params['acc'], radius=self.params['radius'], wait=self.params['wait'])
         self.rotate(object_type)
-
-
-
-
-
 
     def rotate(self,object_type):
         a,base=self.arm.get_position()
@@ -343,10 +422,17 @@ class RoboticArmAssembly:
             else:
                 print('no object')
                 exit()
-    
-        
 
+    #@log_execution
     def perform_housing_step(self,coord_list):
+        """
+        Performs the housing step of the assembly process.
+
+        Returns
+        -------
+        str
+            A message indicating the status of the housing step.
+        """        
         try: 
             self.xhouse = int(coord_list[0] + coord_list[2])
             self.xhouse = self.xhouse /2
@@ -361,18 +447,25 @@ class RoboticArmAssembly:
             return message
 
         try:
-            
             self.movement(coord_list,"housing_set","housing_90",self.xH,self.yH)
         except Exception as e:
             message = f"Error {e}: there was an error during the housing movement"
             return message
                     
-        self.step_already_done = "housing"
         message = "Housing step completed successfully."
         return message          
 
-        
+    #@log_execution
     def perform_wedge_step(self,coord_list):
+        """
+        Performs the wedge step of the assembly process.
+
+        Returns
+        -------
+        str
+            A message indicating the status of the wedge step.
+        """        
+
         try:
             self.xwedge = int(coord_list[0] + coord_list[2])
             self.xwedge = self.xwedge /2
@@ -383,8 +476,8 @@ class RoboticArmAssembly:
             self.xW = self.base[0] + (self.ywedge)*-0.6+245
             self.yW = self.base[1] + (self.xwedge)*-0.6+230
         except:
-            return f"Error: during wedge object placement detection"
-
+            message = f"Error: the wedge object was not detected"
+            return message
         try:
             self.movement(coord_list,"wedge_set","wedge_90",self.xW,self.yW)
         except Exception as e:
@@ -398,10 +491,9 @@ class RoboticArmAssembly:
             ############################
             #return f"Error: wedge object placement is not done correctly."
     
-        self.step_already_done = "wedge"
-        
         return "Wedging step completed successfully."
-                
+    
+    #@log_execution                
     def perform_spring_step(self,coord_list):
         try:
             self.xspring = int(coord_list[0] + coord_list[2])
@@ -421,9 +513,9 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during spring movement"
                         
-        self.step_already_done = "spring"
         return "Spring step completed successfully."
-
+        
+    #@log_execution
     def perform_cap_step(self,coord_list):
         try:
             self.xcap = int(coord_list[0] + coord_list[2])
@@ -442,32 +534,8 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during cap movement"
                         
-        self.step_already_done = "completed"
         return "Cap step completed successfully."
         
-    def resume_assembly_from_last_step(self, step_already_done):
-        # Define the order of assembly steps
-        assembly_steps = ["housing", "wedge", "spring", "cap"]
-        #assembly_steps = ["housing", "wedge", "spring"]
-        last_completed_index = assembly_steps.index(step_already_done) if step_already_done in assembly_steps else -1
-        
-        for step in assembly_steps[last_completed_index + 1:]:
-            message = getattr(self, f"perform_{step}_step")()
-            if 'error' in message.lower():
-                return self.step_already_done, message
-        
-        self.step_already_done = "completed"
-        return self.step_already_done, "All steps for the assembly are successfully completed."
-
-    def start_robotic_assembly(self):
-        for step in ["housing", "wedge", "spring", "cap"]:
-        #for step in ["housing", "wedge", "spring"]:
-            message = getattr(self, f"perform_{step}_step")()
-            if 'error' in message.lower():
-                return self.step_already_done, message
-        
-        return self.step_already_done, message
-    
     def find_available_cameras(self):
         """Attempt to open cameras within a range to see which indices are available."""
         available_cameras = []
@@ -519,14 +587,25 @@ class RoboticArmAssembly:
                 cap.release()
                 cv2.destroyAllWindows()
                 return
-        
 
+    def _verbal_updates(self, step_working_on: str):
+        """
+        Retrieve safety information for starting the process and provide verbal updates.
+        """
+        message = self.sop_handler.retrieve(f"Assembly step working on: {step_working_on}." + VERBAL_UPDATES_INSTRUCTIONS)
+        threading.Thread(target=self.voice_control.text_to_speech, args=(message, 0)).start()
 
-    def count_and_display_objects(self):
-        '''
-        Displays a frame with bounding boxes around all objects and a count for how many there are.
-        Additionally, provides coordinates of each type of object
-        '''
+    #@log_execution
+    def robotic_assembly(self, step_working_on: str):
+        """
+        Starts the robotic assembly process by performing each step sequentially.
+        If the step is not part of the assembly steps, it starts from the beginning.
+
+        :param step_working_on: name of the assembly step that is being worked on
+        """
+        # Run verbal updates asynchronously
+        threading.Thread(target=self._verbal_updates, args=(step_working_on,)).start()
+
         path = 'llm-roboticarm/vision_data/combined.pt'
 
         # Loads the model
@@ -575,43 +654,55 @@ class RoboticArmAssembly:
                 cv2.putText(frame, f'{obj_name}: {count}', (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                 y_offset += 20
             
-      
             cv2.imshow("Object Detection", frame)
             
             key = cv2.waitKey(1)
             if key & 0xFF == 27:  #Can end loop by pressing the Esc key
                 break
-            
-            '''
-            for obj_name, coords in object_coords.items():
-                if obj_name=='housing' and temp==0:
-                    self.perform_housing_step(coords)
-                elif obj_name=='wedge' and temp==1:
-                    self.perform_wedge_step(coords)
-                elif obj_name=='spring' and temp==2:
-                    self.perform_spring_step(coords)
-                elif obj_name=='cap' and temp==3:
-                    self.perform_cap_step(coords)
-            temp+=1 
-            '''
-            
-            if temp < len(self.assembly_steps):
-                obj_name = self.assembly_steps[temp]
-                if obj_name in object_coords:
-                    coords = object_coords[obj_name]
-                    getattr(self, f"perform_{obj_name}_step")(coords)
-                    temp += 1
-            
 
-        cap.release()
-        cv2.destroyAllWindows()
+            assembly_steps = self.params_json.get("assembly_steps", [])
+            # Determine if the process should start from the beginning
+            start_from_beginning = step_working_on not in assembly_steps
+            if start_from_beginning:
+                self.logger.info("Starting the robotic assembly process from the beginning")
+                step_working_on = assembly_steps[0]  # Start from the first step
+
+            # Get the current index of the step
+            current_index = assembly_steps.index(step_working_on)
+
+            for step in assembly_steps[current_index:]:
+                if step in object_coords:
+                    coords = object_coords[step]
+                    self.step_working_on = step
+                    message = getattr(self, f"perform_{step}_step")(coords)
+                    if 'error' in message.lower():
+                        cap.release()
+                        cv2.destroyAllWindows()                        
+                        return self.step_working_on, message
+                else:
+                    self.step_working_on = step
+                    message = f"Error: the {step} object was not detected"
+                    cap.release()
+                    cv2.destroyAllWindows()                        
+                    return self.step_working_on, message                  
+
+            cap.release()
+            cv2.destroyAllWindows()
+
+            self.step_working_on = "completed"
+            return self.step_working_on, message                    
 
 
 if __name__ == "__main__":
-    
-    assembly = RoboticArmAssembly()
+    params_file = 'llm-roboticarm/initialization/robots/specification/params.json'
+    with open(params_file, 'r') as file:
+        params_information = json.load(file)
+
+    assembly = RoboticArmAssembly(params_information)
     #assembly.quality_check("wedge")
     #assembly.start_robotic_assembly()
     #assembly.find_available_cameras()
-    assembly.count_and_display_objects()
+    #assembly.count_and_display_objects()
+    assembly.robotic_assembly(step_working_on="None")
+
     

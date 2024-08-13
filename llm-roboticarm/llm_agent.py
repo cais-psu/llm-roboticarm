@@ -62,7 +62,7 @@ class LlmAgent:
         self.logger_agent.addHandler(console_handler)
         self.logger_action.addHandler(console_handler)
         ######################################################################################
-        self.model = "gpt-4o" if model is None else model
+        self.model = "gpt-4o-2024-08-06" if model is None else model
         self.name = name
         self.annotation = annotation
 

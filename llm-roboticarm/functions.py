@@ -60,7 +60,7 @@ class RoboticArmFunctions:
         ]
 
         response = openai.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-2024-08-06",
             messages=msgs,
             temperature=0.0,
         )
@@ -123,7 +123,7 @@ class RoboticArmFunctions:
             msgs.append({"role": "user", "content": self.assembly_prompt})
 
             response = openai.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-2024-08-06",
                 messages=msgs,
                 functions=self.assembly_function_info,
                 temperature=0.0,

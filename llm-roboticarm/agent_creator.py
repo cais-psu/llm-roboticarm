@@ -22,7 +22,7 @@ def create_robot_agents(robot_init_list, robot_functions):
                         else:
                             print(f"Function '{function_name}' not found in functions module for agent {name}.")
                 agent = LlmAgent(
-                    model="gpt-4o",
+                    model="gpt-4o-2024-08-06",
                     name=name, 
                     annotation=robot_data.get('annotation', None),
                     instructions=robot_data.get('instructions', None),

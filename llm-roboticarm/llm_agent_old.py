@@ -48,7 +48,7 @@ class LlmAgent:
         annotation: str = None,
         instructions: str = None,
         functions_: list = None,
-        non_function_model: str = "gpt-4o",
+        non_function_model: str = "gpt-4o-2024-08-06",
     ) -> None:
         """
         :param functions_: List of available functions
@@ -66,7 +66,7 @@ class LlmAgent:
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-        self.model = "gpt-4o" if model is None else model
+        self.model = "gpt-4o-2024-08-06" if model is None else model
         self.name = name
         self.annotation = annotation
         self.non_function_model = non_function_model
@@ -148,7 +148,7 @@ class LlmAgent:
                     )
                 else:
                     response = openai.chat.completions.create(
-                        model="gpt-4o",
+                        model="gpt-4o-2024-08-06",
                         messages=msgs,
                         temperature=temperature,
                     )

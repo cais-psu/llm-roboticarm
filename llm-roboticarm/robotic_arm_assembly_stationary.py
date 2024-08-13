@@ -64,9 +64,9 @@ class RoboticArmAssembly:
             'callback_in_thread': True,
             'quit': False
         }
+
         self.step_working_on = None
         self.voice_control = VoiceControl()
-
         # Load configuration from the JSON file
         if isinstance(params_json, str):
             self.params_json = json.loads(params_json)
