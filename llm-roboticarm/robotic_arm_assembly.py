@@ -367,7 +367,7 @@ class RoboticArmAssembly:
         data['spring_90']
         data['cap_90']
 
-    #@log_execution
+    @log_execution
     def movement(self,bounding_box_coords,object_set,object_90,pixel_x_coord,pixel_y_coord):
         """
         :Performs the arm's movement to detected objects, gripping operation, and movement to the assembly area
@@ -423,7 +423,7 @@ class RoboticArmAssembly:
                 print('no object')
                 exit()
 
-    #@log_execution
+    @log_execution
     def perform_housing_step(self,coord_list):
         """
         Performs the housing step of the assembly process.
@@ -455,7 +455,7 @@ class RoboticArmAssembly:
         message = "Housing step completed successfully."
         return message          
 
-    #@log_execution
+    @log_execution
     def perform_wedge_step(self,coord_list):
         """
         Performs the wedge step of the assembly process.
@@ -595,7 +595,7 @@ class RoboticArmAssembly:
         message = self.sop_handler.retrieve(f"Assembly step working on: {step_working_on}." + VERBAL_UPDATES_INSTRUCTIONS)
         threading.Thread(target=self.voice_control.text_to_speech, args=(message, 0)).start()
 
-    #@log_execution
+    @log_execution
     def robotic_assembly(self, step_working_on: str):
         """
         Starts the robotic assembly process by performing each step sequentially.
@@ -661,6 +661,7 @@ class RoboticArmAssembly:
                 break
 
             assembly_steps = self.params_json.get("assembly_steps", [])
+            #assembly_steps = ["housing", "wedge", "spring", "cap"]
             # Determine if the process should start from the beginning
             start_from_beginning = step_working_on not in assembly_steps
             if start_from_beginning:

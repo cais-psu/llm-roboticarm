@@ -7,7 +7,8 @@ import agent_creator
 import functions
 from voice_control import VoiceControl
 from user_interface import UserInterface
-
+from robotic_arm_assembly import RoboticArmAssembly
+import json
 def run_voice_control(voice_control, user, roboticarm_agents):
     # Start listening for hotwords
     voice_control.listen_for_hotwords(
@@ -27,6 +28,11 @@ if __name__ == "__main__":
     robot_spec_file = robot_file_path + 'specification/xArm_SOP.pdf'
     # Params File
     robot_params_file = robot_file_path + 'specification/params.json'
+    robot_params_file2 = robot_file_path + 'specification/params2.json'
+    # temp
+    with open(robot_params_file2, 'r') as file:
+        params_information = json.load(file)
+    assembly = RoboticArmAssembly(params_information)
 
     # User Creation
     user = agent_creator.create_user()
