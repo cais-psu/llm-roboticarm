@@ -493,7 +493,7 @@ class RoboticArmAssembly:
     
         return "Wedging step completed successfully."
     
-    #@log_execution                
+    @log_execution                
     def perform_spring_step(self,coord_list):
         try:
             self.xspring = int(coord_list[0] + coord_list[2])
@@ -515,7 +515,7 @@ class RoboticArmAssembly:
                         
         return "Spring step completed successfully."
         
-    #@log_execution
+    @log_execution
     def perform_cap_step(self,coord_list):
         try:
             self.xcap = int(coord_list[0] + coord_list[2])
@@ -534,7 +534,7 @@ class RoboticArmAssembly:
         except Exception as e:
             return f"Error {e} during cap movement"
                         
-        return "Cap step completed successfully."
+        return "All steps are completed successfully."
         
     def find_available_cameras(self):
         """Attempt to open cameras within a range to see which indices are available."""
@@ -660,8 +660,9 @@ class RoboticArmAssembly:
             if key & 0xFF == 27:  #Can end loop by pressing the Esc key
                 break
 
-            assembly_steps = self.params_json.get("assembly_steps", [])
+            #assembly_steps = self.params_json.get("assembly_steps", [])
             #assembly_steps = ["housing", "wedge", "spring", "cap"]
+            assembly_steps = ["wedge", "spring", "cap"]
             # Determine if the process should start from the beginning
             start_from_beginning = step_working_on not in assembly_steps
             if start_from_beginning:

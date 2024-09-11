@@ -9,6 +9,7 @@ from voice_control import VoiceControl
 from user_interface import UserInterface
 from robotic_arm_assembly import RoboticArmAssembly
 import json
+
 def run_voice_control(voice_control, user, roboticarm_agents):
     # Start listening for hotwords
     voice_control.listen_for_hotwords(
