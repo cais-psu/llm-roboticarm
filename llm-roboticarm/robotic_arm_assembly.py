@@ -52,7 +52,7 @@ class RoboticArmAssembly:
         ######################################################################################
 
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
-        self.sop_handler = RAGHandler('llm-roboticarm/initialization/robots/specification/xArm_SOP.pdf', 'pdf', self.openai_api_key)
+        self.sop_handler = RAGHandler(os.path.dirname(__file__) +'/initialization/robots/specification/xArm_SOP.pdf', 'pdf', self.openai_api_key)
 
         self.arm = XArmAPI('192.168.1.240', baud_checkset=False)
         self.variables = {}
