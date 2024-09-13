@@ -14,8 +14,8 @@ class VoiceControl:
     def __init__(self):
         # Initialize the VoiceControl class with access key and keyword paths
         self.access_key = "FrMaUJNG+1dzKVWOW4J06mE81bkd6ao6vseEBG5iJ2AeaLqp/gFqIQ=="  # Picovoice access key
-        self.start_keyword_path = "llm-roboticarm/voice_keywords/hello_xarm_wakeword.ppn"  # Path to your custom start keyword model
-        self.stop_keyword_path = "llm-roboticarm/voice_keywords/end_of_command_wakeword.ppn"  # Path to your custom stop keyword model
+        self.start_keyword_path = os.path.dirname(__file__) + "\\voice_keywords\\hello_xarm_wakeword.ppn"  # Path to your custom start keyword model
+        self.stop_keyword_path = os.path.dirname(__file__) +  "\\voice_keywords\\end_of_command_wakeword.ppn"  # Path to your custom stop keyword model
         self.lock = threading.Lock()
 
         # Load the OpenAI API key

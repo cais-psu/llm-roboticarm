@@ -42,7 +42,7 @@ class RoboticArmAssembly:
         self.logger = logging.getLogger(f'action_xArm')
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/xArm_actions.log', mode='a')
+        file_handler = logging.FileHandler(f'log/xArm_actions.log', mode='a')
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
@@ -356,7 +356,7 @@ class RoboticArmAssembly:
         cap.release()
         cv2.destroyAllWindows(name)
 
-    with open('C:/Users/jongh/projects/llm-roboticarm/llm-roboticarm/initialization/robots/specification/params2.json','r') as file:
+    with open(os.path.dirname(__file__) + '\initialization\\robots\specification\params2.json','r') as file:
         data=json.load(file)
         data['housing_set']
         data['wedge_set']

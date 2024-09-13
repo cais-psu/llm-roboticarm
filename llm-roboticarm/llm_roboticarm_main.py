@@ -22,7 +22,7 @@ if __name__ == "__main__":
     voice_control = VoiceControl()
 
     # Define the file paths for the JSON files
-    robot_file_path = 'llm-roboticarm/initialization/robots/'
+    robot_file_path = os.path.dirname(__file__) + '\\initialization\\robots/'
     # Init Files
     robot_init_list = general_utils.get_init_files(robot_file_path)
     # Spec File
