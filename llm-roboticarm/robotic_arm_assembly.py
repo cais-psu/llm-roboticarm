@@ -1,4 +1,3 @@
-
 import os
 import threading
 import sys
@@ -18,13 +17,11 @@ from prompts import VERBAL_UPDATES_INSTRUCTIONS
 from xarmlib import version
 from xarmlib.wrapper import XArmAPI
 import math
-import pygame
 
 import llm_agent
 from voice_control import VoiceControl
 import functools
 
-from pyzbar.pyzbar import decode
 import pathlib
 from pathlib import Path
 pathlib.PosixPath=pathlib.WindowsPath
@@ -137,28 +134,6 @@ class RoboticArmAssembly:
             return result
         return wrapper
     
-    def detect_qr_code_from_camera(self):
-        '''
-        :detect_qr_code_from_camera() is used to find the pixel coordinates of the reference qr code
-
-        :This function does not require any arguments to be passed
-
-        :return: pixel coordinates of the center of the qr code
-        '''
-        cap = cv2.VideoCapture(2)
-        while True:
-            ret, frame = cap.read()
-            decoded_objects = decode(frame)
-            for obj in decoded_objects:
-                (self.x, self.y, self.w, self.h) = obj.rect
-                cv2.rectangle(frame, (self.x, self.y), (self.x + self.w, self.y + self.h), (0, 255, 0), 2)
-            cv2.imshow("QR Code Detection", frame)
-            time.sleep(1)
-            break
-            #if cv2.waitKey(1) & 0xFF == ord('q'):
-                #break
-        return (self.x+self.w//2,self.y+self.w//2)
-
     def quality_check(self, assembly_step):
         '''
         :Checks visually to determine if the previous assembly step was successful

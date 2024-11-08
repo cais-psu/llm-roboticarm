@@ -37,7 +37,6 @@ class RAGHandler:
             raise FileNotFoundError(f"The file {self.file_path} does not exist.")
 
     def _extract_text_from_pdf(self):
-        import pdfplumber
         text = ''
         try:
             with pdfplumber.open(self.file_path) as pdf:
