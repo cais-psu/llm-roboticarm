@@ -6,7 +6,7 @@ authors = ["Jonghan Lim <jxl567@psu.edu>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "3.11.9"
+python = "3.9.0"
 openai = "^1.11.1"
 requests = "^2.31.0"
 numpy = "^1.26.3"
