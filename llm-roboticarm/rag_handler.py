@@ -10,6 +10,10 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain.schema import Document
 
 class RAGHandler:
+    """
+    Handles Retrieval-Augmented Generation (RAG) by processing documents, creating embeddings,
+    and setting up a retrieval mechanism using the OpenAI API and vector storage.
+    """
     def __init__(self, file_path, file_type, api_key):
         """
         Initialize the RAGHandler.
@@ -33,10 +37,26 @@ class RAGHandler:
         self.rag_chain = self.initialize_rag_chain()
 
     def _check_file_exists(self):
+        """
+        Checks if the specified file exists.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the specified file does not exist.
+        """        
         if not os.path.isfile(self.file_path):
             raise FileNotFoundError(f"The file {self.file_path} does not exist.")
 
     def _extract_text_from_pdf(self):
+        """
+        Extracts text content from a PDF file.
+
+        Returns
+        -------
+        str
+            The extracted text from the PDF, with each page separated by a newline.
+        """        
         text = ''
         try:
             with pdfplumber.open(self.file_path) as pdf:
@@ -49,6 +69,14 @@ class RAGHandler:
         return text
 
     def _extract_text_from_txt(self):
+        """
+        Reads and returns text from a plain text file.
+
+        Returns
+        -------
+        str
+            The entire content of the text file.
+        """        
         text = ''
         try:
             with open(self.file_path, 'r') as file:
@@ -58,6 +86,19 @@ class RAGHandler:
         return text
 
     def _extract_text(self):
+        """
+        Extracts text based on file type.
+
+        Returns
+        -------
+        str
+            The extracted text.
+
+        Raises
+        ------
+        ValueError
+            If the file type is unsupported.
+        """        
         if self.file_type == 'pdf':
             return self._extract_text_from_pdf()
         elif self.file_type == 'txt':
@@ -66,13 +107,52 @@ class RAGHandler:
             raise ValueError("Unsupported file type. Only 'pdf' and 'txt' files are supported.")
 
     def _split_text_into_chunks(self, text):
+        """
+        Splits text into smaller chunks for processing.
+
+        Parameters
+        ----------
+        text : str
+            The text to split.
+
+        Returns
+        -------
+        list
+            A list of text chunks.
+        """        
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
         return text_splitter.split_text(text)
 
-    def _convert_chunks_to_documents(self, chunks):
+    def _convert_chunks_to_documents(self, chunks: list) -> list:
+        """
+        Converts text chunks into Document objects.
+
+        Parameters
+        ----------
+        chunks : list
+            List of text chunks.
+
+        Returns
+        -------
+        list
+            A list of Document objects created from the chunks.
+        """        
         return [Document(page_content=chunk) for chunk in chunks]
 
     def _create_vector_db(self, documents):
+        """
+        Creates a vector database from a list of documents.
+
+        Parameters
+        ----------
+        documents : list
+            List of Document objects.
+
+        Returns
+        -------
+        Chroma
+            A Chroma vector database with embeddings from the documents.
+        """        
         return Chroma.from_documents(
             documents=documents, 
             embedding=self.embedding_model,
@@ -80,6 +160,19 @@ class RAGHandler:
         )
 
     def _setup_retriever(self, vector_db):
+        """
+        Sets up a retriever with multi-query capabilities to enhance document retrieval.
+
+        Parameters
+        ----------
+        vector_db : Chroma
+            The vector database for document embeddings.
+
+        Returns
+        -------
+        MultiQueryRetriever
+            The retriever configured for multi-query processing.
+        """        
         QUERY_PROMPT = PromptTemplate(
             input_variables=["question"],
             template="""You are an AI language model assistant. Your task is to generate five
@@ -96,6 +189,15 @@ class RAGHandler:
         )
 
     def _define_rag_prompt(self):
+        """
+        Defines the prompt template for the RAG process.
+
+        Returns
+        -------
+        ChatPromptTemplate
+            A chat prompt template for RAG processing.
+        """      
+
         template = """Answer the question based ONLY on the following context:
         {context}
         Question: {question}
@@ -103,6 +205,21 @@ class RAGHandler:
         return ChatPromptTemplate.from_template(template)
 
     def _create_processing_chain(self, retriever, prompt):
+        """
+        Creates a processing chain for RAG by combining retriever, prompt, and LLM response.
+
+        Parameters
+        ----------
+        retriever : MultiQueryRetriever
+            The retriever to fetch relevant documents.
+        prompt : ChatPromptTemplate
+            The prompt for formatting the response.
+
+        Returns
+        -------
+        dict
+            The processing chain for the RAG workflow.
+        """        
         return (
             {"context": retriever, "question": RunnablePassthrough()}
             | prompt
@@ -111,15 +228,37 @@ class RAGHandler:
         )
 
     def initialize_rag_chain(self):
-        self._check_file_exists()
-        text = self._extract_text()
-        chunks = self._split_text_into_chunks(text)
-        documents = self._convert_chunks_to_documents(chunks)
-        vector_db = self._create_vector_db(documents)
-        retriever = self._setup_retriever(vector_db)
-        prompt = self._define_rag_prompt()
-        return self._create_processing_chain(retriever, prompt)
+        """
+        Initializes the RAG processing chain by extracting text, creating documents,
+        setting up the vector database, and defining the retriever and prompt.
+
+        Returns
+        -------
+        dict
+            The complete RAG processing chain.
+        """        
+        self._check_file_exists()  # Check if the file exists
+        text = self._extract_text()  # Extract text based on file type
+        chunks = self._split_text_into_chunks(text)  # Split text into manageable chunks
+        documents = self._convert_chunks_to_documents(chunks)  # Convert chunks to Document objects
+        vector_db = self._create_vector_db(documents)  # Create vector database with embeddings
+        retriever = self._setup_retriever(vector_db)  # Setup retriever with multi-query capability
+        prompt = self._define_rag_prompt()  # Define prompt template for LLM responses
+        return self._create_processing_chain(retriever, prompt)  # Create and return the processing chain
 
     def retrieve(self, question: str):
+        """
+        Retrieves a response based on the user's question by invoking the RAG processing chain.
+
+        Parameters
+        ----------
+        question : str
+            The user's question to retrieve relevant information.
+
+        Returns
+        -------
+        str
+            The generated response based on the provided context.
+        """        
         response = self.rag_chain.invoke({"question": question})
         return response

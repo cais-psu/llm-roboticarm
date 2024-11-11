@@ -38,9 +38,11 @@ class FunctionAnalyzer:
         """
         name = function_.__name__
 
-        # analyze type hints
+        # Retrieve and process type hints, excluding 'return' type
         type_hints = typing.get_type_hints(function_)
         type_hints.pop("return", None)
+
+        # Identify required parameters (not marked as Optional)
         required = [
             th
             for th in type_hints
@@ -49,6 +51,8 @@ class FunctionAnalyzer:
                 and type(None) in typing.get_args(type_hints[th])
             )
         ]
+
+        # Map type hints to simpler types for OpenAI API compatibility
         type_hints_basic = {
             k: (
                 v
@@ -58,16 +62,20 @@ class FunctionAnalyzer:
             for k, v in type_hints.items()
         }
 
-        # analyze doc string
+        # Parse the docstring to separate function and parameter descriptions
         function_description, param_description = (
             e.strip() for e in function_.__doc__.split("\n\n")
         )
+
+        # Extract individual parameter descriptions
         param_descriptions = {
             k: v
             for (k, v) in [
                 e.strip().split(": ") for e in param_description.split(":return:")[0].split(":param ") if e
             ]
         }
+
+        # Create VariableDescription instances for each parameter
         variable_descriptions = [
             VariableDescription(
                 name=v,
@@ -76,6 +84,8 @@ class FunctionAnalyzer:
             ).to_dict()
             for v in type_hints_basic
         ]
+
+        # Consolidate variable descriptions into a properties dictionary
         properties = {k: v for d in variable_descriptions for k, v in d.items()}
 
         return {
@@ -90,9 +100,16 @@ class FunctionAnalyzer:
 
     def analyze_class(self, class_: object) -> list:
         """
-        Analyzes a python class and returns a description of all its non-private functions
-            compatible with the OpenAI API
+        Analyzes a Python class to generate descriptions for all its non-private methods,
+        compatible with the OpenAI API format.
+
+        Args:
+            class_ (object): The class to analyze.
+
+        Returns:
+            list: A list of dictionaries, each describing one method in the class.
         """
+        # Analyze each non-private method in the class
         functions = [
             self.analyze_function(getattr(class_, func))
             for func in dir(class_)

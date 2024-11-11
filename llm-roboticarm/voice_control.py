@@ -8,11 +8,20 @@ import pyaudio
 import struct
 import wave
 from pvrecorder import PvRecorder
-import asyncio
 
 class VoiceControl:
+    """
+    A class to handle voice control functionalities, including hotword detection,
+    recording audio, transcribing speech to text, and playing text-to-speech output.
+    """    
+
     def __init__(self):
-        # Initialize the VoiceControl class with access key and keyword paths
+        """
+        Initializes the VoiceControl class with hotword detection, OpenAI API key,
+        and audio recording setup.
+        """
+        # Picovoice access key and paths to custom wakeword models
+
         self.access_key = "FrMaUJNG+1dzKVWOW4J06mE81bkd6ao6vseEBG5iJ2AeaLqp/gFqIQ=="  # Picovoice access key
         self.start_keyword_path = "llm-roboticarm/voice_keywords/hello_xarm_wakeword.ppn"  # Path to your custom start keyword model
         self.stop_keyword_path = "llm-roboticarm/voice_keywords/end_of_command_wakeword.ppn"  # Path to your custom stop keyword model
@@ -43,6 +52,15 @@ class VoiceControl:
         )
 
     def transcribe(self, audio_file_path):
+        """
+        Transcribes audio to text using OpenAI's Whisper model.
+
+        Parameters:
+        audio_file_path (str): Path to the audio file to be transcribed.
+
+        Returns:
+        str or None: The transcription text if successful, None otherwise.
+        """        
         try:
             time.sleep(1)
             with open(audio_file_path, "rb") as audio_file:
@@ -57,6 +75,13 @@ class VoiceControl:
             return None
         
     def text_to_speech(self, message, delay=0):
+        """
+        Converts text to speech and plays it through the system's audio output.
+
+        Parameters:
+        message (str): The text to convert to speech.
+        delay (int, optional): Time delay in seconds before starting playback.
+        """        
         time.sleep(delay)  # Use time.sleep for blocking sleep
         file_path = "response.mp3"
 
@@ -84,6 +109,12 @@ class VoiceControl:
                 return None
         
     def play_mp3(self, file_path):
+        """
+        Plays an MP3 file using Pygame.
+
+        Parameters:
+        file_path (str): Path to the MP3 file to play.
+        """        
         pygame.mixer.init()
         pygame.mixer.music.load(file_path)
         pygame.mixer.music.play()
@@ -91,11 +122,17 @@ class VoiceControl:
             time.sleep(0.1)
 
     def stop_and_unload_mixer(self):
+        """
+        Stops any audio currently playing and unloads the Pygame mixer.
+        """        
         if pygame.mixer.get_init():
             pygame.mixer.music.stop()
             pygame.mixer.quit()
 
     def record_audio(self):
+        """
+        Records audio using PvRecorder and stores it in the audio list.
+        """        
         recorder = PvRecorder(device_index=self.device_index, frame_length=self.frame_length)
         try:
             recorder.start()
@@ -111,6 +148,12 @@ class VoiceControl:
             self.save_recording()
 
     def start_recording(self):
+        """
+        Starts recording audio in a separate thread if not already recording.
+
+        Returns:
+        bool: True if recording started, False if already recording.
+        """        
         if not self.recording:
             self.recording = True
             threading.Thread(target=self.record_audio).start()
@@ -120,6 +163,12 @@ class VoiceControl:
             return False
 
     def stop_recording(self):
+        """
+        Stops the audio recording.
+
+        Returns:
+        bool: True if recording was active and stopped, False otherwise.
+        """        
         if self.recording:
             self.recording = False
             return True
@@ -128,6 +177,9 @@ class VoiceControl:
             return False
 
     def save_recording(self):
+        """
+        Saves the recorded audio to a WAV file.
+        """        
         if not self.audio:
             print("No audio recorded.")
             return
@@ -144,6 +196,13 @@ class VoiceControl:
         print("Recording saved successfully.")
 
     def listen_for_hotwords(self, start_hotword_callback, stop_hotword_callback):
+        """
+        Listens for start and stop hotwords using Porcupine and triggers respective callbacks.
+
+        Parameters:
+        start_hotword_callback (function): Callback for when the start hotword is detected.
+        stop_hotword_callback (function): Callback for when the stop hotword is detected.
+        """        
         while True:
             pcm = self.audio_stream.read(self.porcupine_start.frame_length)
             pcm = struct.unpack_from("h" * self.porcupine_start.frame_length, pcm)
@@ -157,6 +216,15 @@ class VoiceControl:
                 stop_hotword_callback()
 
     def transcribe_and_append_command(self, audio_path, user, log_message, roboticarm_agents):
+        """
+        Transcribes audio, logs the command, and sends it to robotic arm agents.
+
+        Parameters:
+        audio_path (str): Path to the audio file.
+        user: The user object for appending the command.
+        log_message (function): Function to log messages to the UI.
+        roboticarm_agents (list): List of robotic arm agent instances to receive the command.
+        """        
         transcript = self.transcribe(audio_path)
         if transcript:
             # Remove the last three words from the transcription
@@ -171,6 +239,12 @@ class VoiceControl:
             log_message("System", "Transcription failed or returned no result.")
 
     def start_hotword_detected(self, log_message):
+        """
+        Callback triggered when the start hotword is detected.
+
+        Parameters:
+        log_message (function): Function to log messages to the UI.
+        """        
         log_message("System", "Hotword 'hello xarm' detected!")
         if self.start_recording():
             log_message("System", "Recording started!")
@@ -178,6 +252,14 @@ class VoiceControl:
             log_message("System", "Recording is already in progress.")
 
     def stop_hotword_detected(self, log_message, user, roboticarm_agents):
+        """
+        Callback triggered when the stop hotword is detected.
+
+        Parameters:
+        log_message (function): Function to log messages to the UI.
+        user: The user object for appending the command.
+        roboticarm_agents (list): List of robotic arm agent instances to receive the command.
+        """        
         log_message("System", "Hotword 'end of command' detected!")
         if self.stop_recording():
             log_message("System", "Recording stopped and saved successfully.")

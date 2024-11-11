@@ -30,6 +30,10 @@ if OPENAI_API_KEY is None:
 openai.api_key = OPENAI_API_KEY
 
 class LlmAgent:
+    """
+    Represents an AI-powered agent that can interact with users and other agents, 
+    process instructions, execute functions, and log actions.
+    """    
     def __init__(
         self,
         model: str = None,
@@ -39,30 +43,27 @@ class LlmAgent:
         functions_: list = None,
 
     ) -> None:
-        ############################ Set up agent-specific logger ############################
-        # Logger for agent-specific logs
-        self.logger_agent = logging.getLogger(f'agent_{name}')
-        self.logger_agent.setLevel(logging.INFO)
-        self.logger_agent.propagate = False
-        agent_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_agent.log', mode='a')
-        agent_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger_agent.addHandler(agent_file_handler)
-        
-        # Logger for xArm action logs
-        self.logger_action = logging.getLogger(f'action_{name}')
-        self.logger_action.setLevel(logging.INFO)
-        self.logger_action.propagate = False
-        actions_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_actions.log', mode='a')
-        actions_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [ACTION] - %(message)s'))
-        self.logger_action.addHandler(actions_file_handler)
+        """
+        Initializes the LlmAgent class.
 
-        # Console handler for both loggers
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger_agent.addHandler(console_handler)
-        self.logger_action.addHandler(console_handler)
-        ######################################################################################
-        self.model = "gpt-4o-2024-08-06" if model is None else model
+        Parameters
+        ----------
+        model : str, optional
+            The model to be used for generating responses (default is "gpt-4o").
+        name : str, optional
+            The name of the agent.
+        annotation : str, optional
+            Additional information about the agent.
+        instructions : str, optional
+            Initial instructions for the agent.
+        functions_ : list, optional
+            List of Python functions that the agent can execute.
+        """        
+
+        # Set up logging for both agent-specific and action logs
+        self._setup_logging(name)
+        
+        self.model = "gpt-4o" if model is None else model
         self.name = name
         self.annotation = annotation
 
@@ -96,12 +97,64 @@ class LlmAgent:
 
         # Log that the xArm agent has been initialized and the status is idle
         self.logger_action.info("The xArm has been initialized and the status is idle.")
+        
+    def _setup_logging(self, name: str):
+        """
+        Sets up logging for the agent and its actions.
+        
+        Parameters
+        ----------
+        name : str
+            The name of the agent, used for log file naming.
+        """
+        # Set up agent-specific logger
+        self.logger_agent = logging.getLogger(f'agent_{name}')
+        self.logger_agent.setLevel(logging.INFO)
+        agent_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_agent.log', mode='a')
+        agent_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger_agent.addHandler(agent_file_handler)
+        
+        # Set up action logger
+        self.logger_action = logging.getLogger(f'action_{name}')
+        self.logger_action.setLevel(logging.INFO)
+        actions_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_actions.log', mode='a')
+        actions_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [ACTION] - %(message)s'))
+        self.logger_action.addHandler(actions_file_handler)
+
+        # Console handler for both loggers
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger_agent.addHandler(console_handler)
+        self.logger_action.addHandler(console_handler)
 
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
+        """
+        Adds a message to the inbox for processing.
+        
+        Parameters
+        ----------
+        sender : str
+            The sender of the message.
+        message : list[tuple[str, str]]
+            Message content in list of tuples format.
+        
+        Returns
+        -------
+        str
+            Confirmation message indicating receipt.
+        """        
         self.inbox.append([(sender, message)])
         return f"{self.name} Agent received a message."
     
     def setup_message_functions(self, peers: list = None):
+        """
+        Sets up messaging functions for communication with peer agents.
+
+        Parameters
+        ----------
+        peers : list
+            List of peer agents for inter-agent communication.
+        """        
         for peer in peers:
             _description_extended = (
                 f"This function messages a user, whose description is as follows:\n"
@@ -132,8 +185,18 @@ class LlmAgent:
                 self.message_executables[peer.name] = getattr(peer, "message")
 
     def _msg_history_to_prompt(self, msg_history: list[tuple[str, str]]) -> str:
-        """ Turn a message history as it is stored in the query into a prompt history to be continued by the LLM
-        Doing this as plain text allows having several agents in the conversation.
+        """
+        Converts message history into a prompt for the language model.
+
+        Parameters
+        ----------
+        msg_history : list[tuple[str, str]]
+            List of messages in (sender, content) format.
+
+        Returns
+        -------
+        str
+            Prompt formatted as message history.
         """
         self.logger_agent.info(f"{msg_history=}")
         messages = "\n".join([" The requester is " + m[0] + ". The requester " + m[0] + " sent this message: " + m[1] for m in msg_history])
@@ -152,9 +215,28 @@ class LlmAgent:
         temperature: float = 0.0,
         function_call: dict = {}
     ) -> openai.openai_object.OpenAIObject:
-        response = None
+        """
+        Requests a response from OpenAI API with optional function call.
 
-        print(self.function_info)
+        Parameters
+        ----------
+        msgs : list
+            Messages to include in the API call.
+        model : str
+            Model to use for the call.
+        with_functions : bool, optional
+            Whether to enable functions (default is True).
+        temperature : float, optional
+            Controls randomness (default is 0.0).
+        function_call : dict, optional
+            Specific function call configuration (default is empty dict).
+        
+        Returns
+        -------
+        openai.openai_object.OpenAIObject
+            The API response.
+        """        
+        response = None
 
         while not response:
             try:
@@ -190,8 +272,6 @@ class LlmAgent:
         function_call: dict = {}
     ) -> openai.openai_object.OpenAIObject:
         response = None
-
-
         while not response:
             try:
                 if with_functions:
@@ -210,7 +290,23 @@ class LlmAgent:
         return response    
     
     def chat(self, prompt: str, model: str = None, temperature: float = 0.0) -> str:
-        # choose the right model
+        """
+        Sends a chat message to the language model and processes the response.
+
+        Parameters
+        ----------
+        prompt : str
+            The prompt to send to the model.
+        model : str, optional
+            Model to use for the call (default is self.model).
+        temperature : float, optional
+            Controls randomness of the response (default is 0.0).
+        
+        Returns
+        -------
+        tuple
+            Result of the function and messages sent to the model.
+        """
         with_functions = len(self.function_info) > 0
         if model:
             model_ = model
@@ -341,6 +437,9 @@ class LlmAgent:
             self.logger_agent.error(f"An error occurred during function execution: {e}")  
 
     def process_inbox(self):
+        """
+        Processes incoming messages in the inbox, invoking the chat function.
+        """        
         def handle_message(sender, content):
             inbox_identifier = general_utils.get_inbox_identifier(sender, content)
             if self.task_states.get(inbox_identifier) not in ['running', 'completed']:
@@ -365,6 +464,14 @@ class LlmAgent:
             time.sleep(0.1)
 
     def run(self, peers: list = None) -> None:
+        """
+        Starts the agent's inbox processing in a background thread.
+
+        Parameters
+        ----------
+        peers : list
+            List of peer agents to set up messaging functions.
+        """        
         self.setup_message_functions(peers)
         threading.Thread(target=self.process_inbox).start()
         
@@ -382,24 +489,55 @@ class User:
 
         self.voice_control = VoiceControl()  # Assuming VoiceControl is initialized without arguments
 
-        #### Set up agent-specific logger ####
+        # Set up logging for this agent
+        self._setup_logging()
+        
+    def _setup_logging(self):
+        """Sets up file and console logging for the agent."""
         self.logger = logging.getLogger(f'agent_{self.name}')
         self.logger.setLevel(logging.INFO)
-        self.logger.propagate = False
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_agent.log', mode='a')
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        # File handler
+        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_agent.log', mode='a')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
+
+        # Console handler
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
-        ########################################
-        
+
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
+        """
+        Adds a received message to the inbox for processing.
+
+        Parameters
+        ----------
+        sender : str
+            The name of the message sender.
+        message : list[tuple[str, str]]
+            The message content in a list of tuples.
+
+        Returns
+        -------
+        str
+            Confirmation message indicating the message was received.
+        """        
         self.inbox.append([(sender, message)])
         return "User received a message."
 
     def _speak_and_log(self, message: str, sender: str):
+        """
+        Outputs a message through voice control and logs it to the UI.
+
+        Parameters
+        ----------
+        message : str
+            The message content.
+        sender : str
+            The sender's name for logging purposes.
+        """        
         threads = [
             threading.Thread(target=self.voice_control.text_to_speech, args=(message,)),
             threading.Thread(target=UserInterface.log_message_to_ui, args=(sender, message))
@@ -410,6 +548,7 @@ class User:
             thread.join()
 
     def process_inbox(self, peers: list[Union[LlmAgent, User]]):
+        """Continuously processes incoming messages in the inbox."""
         while True:
             if self.inbox:
                 new_message = self.inbox.pop(0)
@@ -423,6 +562,7 @@ class User:
             time.sleep(0.1)
 
     def process_commands(self, peers: list[Union[LlmAgent, User]]):
+        """Continuously processes commands, sending them to specified peers."""
         while True:
             if self.commands:
                 new_command = self.commands.pop(0)
@@ -445,6 +585,14 @@ class User:
             time.sleep(0.1)
 
     def run(self, peers: list[Union[LlmAgent, User]]) -> None:
+        """
+        Starts the agent's message and command processing in separate threads.
+
+        Parameters
+        ----------
+        peers : list
+            List of peer agents that can interact with this agent.
+        """        
         self.process_inbox(peers),
         self.process_commands(peers)
 
