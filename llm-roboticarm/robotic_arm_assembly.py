@@ -16,6 +16,8 @@ import pathlib
 pathlib.PosixPath=pathlib.WindowsPath
 
 import logging
+import log_setup
+
 import torch
 import cv2
 
@@ -31,8 +33,10 @@ class RoboticArmAssembly:
             JSON-formatted string or dictionary with general configuration parameters.
         """
         # Set up agent-specific logger
-        self._setup_logging()
-        
+        self.log_setup = log_setup.LogSetup(name="xArm")
+        self.log_setup.setup_logging("process")
+        self.logger = self.log_setup.logger_process
+
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
         self.sop_handler = RAGHandler('llm-roboticarm/initialization/robots/specification/xArm_SOP.pdf', 'pdf', self.openai_api_key)
 
@@ -88,23 +92,6 @@ class RoboticArmAssembly:
         self.wedge_90 = params_movement.get('wedge_90', [])
         self.spring_90 = params_movement.get('spring_90', [])
         self.cap_90 = params_movement.get('cap_90', [])
-
-    def _setup_logging(self):
-        """Sets up the logger for the robotic arm actions."""
-        self.logger = logging.getLogger('action_xArm')
-        self.logger.setLevel(logging.INFO)
-        self.logger.propagate = False
-
-        # File handler for logging actions
-        file_handler = logging.FileHandler('llm-roboticarm/log/xArm_actions.log', mode='a')
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
-
-        # Console handler for output to the console
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
 
     def trace_lines(self, frame, event, arg):
         """
@@ -223,40 +210,6 @@ class RoboticArmAssembly:
                     wait=self.params_settings['wait']
                 )
 
-    '''
-    #@log_execution
-    def movement(self, bounding_box_coords, object_set, object_90, pixel_x_coord, pixel_y_coord):
-        """
-        Moves the robotic arm to detected objects for gripping and assembly.
-
-        Parameters
-        ----------
-        bounding_box_coords : list
-            Coordinates of the bounding box for the detected object.
-        object_set : list
-            Assembly instructions for vertical orientation.
-        object_90 : list
-            Assembly instructions for horizontal orientation.
-        pixel_x_coord : int
-            X-coordinate for object positioning.
-        pixel_y_coord : int
-            Y-coordinate for object positioning.
-        """
-        setTypes ={True: object_set, False: object_90}
-        set1=setTypes[bounding_box_coords[2] - bounding_box_coords[0] <= bounding_box_coords[3] - bounding_box_coords[1]]
-
-        if self.arm.error_code != 0 or self.params_settings['quit']:    
-            return
-        
-        for i in self.data[set1]:
-            # Determines robot function based on size and type of each element in set1
-            if isinstance(i, int):
-                self.arm.set_gripper_position(i, wait=self.params_settings['wait'], speed=self.params_settings['grip_speed'], auto_enable=self.params_settings['auto_enable'])
-            elif len(i) == 4:
-                self.arm.set_position(*([pixel_x_coord, pixel_y_coord] + i), speed=self.params_settings['speed'], mvacc=self.params_settings['acc'], radius=self.params_settings['radius'], wait=self.params_settings['wait'])
-            else:
-                self.arm.set_position(*i, speed=self.params_settings['speed'], mvacc=self.params_settings['acc'], radius=self.params_settings['radius'], wait=self.params_settings['wait'])
-    '''    
     def find_available_cameras(self):
         """
         Attempts to open cameras to check which indices are available.
@@ -492,7 +445,7 @@ class RoboticArmAssembly:
         Starts the robotic assembly process by performing each step sequentially.
         If the step is not part of the assembly steps, it starts from the beginning.
 
-        :param step_working_on: name of the assembly step that is being worked on
+        :param step_working_on: The exact name of the assembly step currently being worked on. This should be used directly and never altered based on any other context or conditions.
         """
 
         # Start verbal updates asynchronously
@@ -523,7 +476,10 @@ class RoboticArmAssembly:
         cv2.destroyAllWindows()
 
         # Return the final status and message
-        return result, message if result != "completed" else "completed", "Assembly process completed successfully."
+        if result != "completed":
+            return result, message  
+        else:
+            return "completed", "Assembly process completed successfully."
 
 if __name__ == "__main__":
     params_general_path = 'llm-roboticarm/initialization/robots/specification/params_general.json'

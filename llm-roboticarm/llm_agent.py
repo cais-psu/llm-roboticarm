@@ -8,7 +8,9 @@ Agent wrapping the LangChain API
 from __future__ import annotations
 
 import json
-import logging
+#import logging
+import log_setup
+
 import os
 import threading
 import general_utils
@@ -61,8 +63,12 @@ class LlmAgent:
         """        
 
         # Set up logging for both agent-specific and action logs
-        self._setup_logging(name)
-        
+        self.log_setup = log_setup.LogSetup(name="xArm")
+        self.log_setup.setup_logging("agent")
+        self.log_setup.setup_logging("action")
+        self.logger_agent = self.log_setup.logger_agent
+        self.logger_action = self.log_setup.logger_action
+
         self.model = "gpt-4o" if model is None else model
         self.name = name
         self.annotation = annotation
@@ -98,35 +104,6 @@ class LlmAgent:
         # Log that the xArm agent has been initialized and the status is idle
         self.logger_action.info("The xArm has been initialized and the status is idle.")
         
-    def _setup_logging(self, name: str):
-        """
-        Sets up logging for the agent and its actions.
-        
-        Parameters
-        ----------
-        name : str
-            The name of the agent, used for log file naming.
-        """
-        # Set up agent-specific logger
-        self.logger_agent = logging.getLogger(f'agent_{name}')
-        self.logger_agent.setLevel(logging.INFO)
-        agent_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_agent.log', mode='a')
-        agent_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger_agent.addHandler(agent_file_handler)
-        
-        # Set up action logger
-        self.logger_action = logging.getLogger(f'action_{name}')
-        self.logger_action.setLevel(logging.INFO)
-        actions_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_actions.log', mode='a')
-        actions_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [ACTION] - %(message)s'))
-        self.logger_action.addHandler(actions_file_handler)
-
-        # Console handler for both loggers
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger_agent.addHandler(console_handler)
-        self.logger_action.addHandler(console_handler)
-
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
         """
         Adds a message to the inbox for processing.
@@ -489,24 +466,10 @@ class User:
 
         self.voice_control = VoiceControl()  # Assuming VoiceControl is initialized without arguments
 
-        # Set up logging for this agent
-        self._setup_logging()
-        
-    def _setup_logging(self):
-        """Sets up file and console logging for the agent."""
-        self.logger = logging.getLogger(f'agent_{self.name}')
-        self.logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-        # File handler
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_agent.log', mode='a')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
-
-        # Console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
+        # Set up agent-specific logger
+        self.log_setup = log_setup.LogSetup(name="User")
+        self.log_setup.setup_logging("agent")
+        self.logger = self.log_setup.logger_agent
 
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
         """

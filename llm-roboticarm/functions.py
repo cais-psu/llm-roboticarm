@@ -15,13 +15,13 @@ import robotic_arm_assembly
 from datetime import datetime
 
 class RoboticArmFunctions:
-    def __init__(self, sop_file, params_general_path, params_movement_path):
+    def __init__(self, sop_file, params_general, params_movement):
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
         self.llm = ChatOpenAI(model="gpt-4o")
         self.sop_handler = RAGHandler(sop_file, 'pdf', self.openai_api_key)
         self.sop_information = None
-        self.params_general_json = general_utils.load_json_data(params_general_path)
-        self.params_movement = params_movement_path
+        self.params_general = params_general
+        self.params_movement = params_movement
         self.log_file_path = 'llm-roboticarm/log/xArm_actions.log'
         
     def _generated_params(self, task_description) -> str:
@@ -47,7 +47,7 @@ class RoboticArmFunctions:
         {self.sop_information}
 
         Specific Parameters or Configurations for Assembly in JSON:
-        {self.params_general_json}
+        {self.params_general}
 
         Output Format:
         Generated Parameter File in JSON:
@@ -88,7 +88,7 @@ class RoboticArmFunctions:
 
             ########### list of robot functions for internal function call in perform_assembly_task function ###########
             self.assembly = robotic_arm_assembly.RoboticArmAssembly(self.new_params_general, self.params_movement)
-            self.assembly_functions = self.params_general_json.get("assembly_functions", [])
+            self.assembly_functions = self.params_general.get("assembly_functions", [])
 
             self.assembly_functions_ = []
             for assembly_function_name in self.assembly_functions:
@@ -126,8 +126,7 @@ class RoboticArmFunctions:
                 temperature=0.0,
                 function_call="auto",
             )
-
-            print(response)
+            
             func = response.choices[0].message.function_call.name
             args = json.loads(response.choices[0].message.function_call.arguments)
             print(f"Function call: {func}; Arguments: {args}")
@@ -164,7 +163,7 @@ class RoboticArmFunctions:
         """
         This function provides the current status and what the robot has been doing based on retrieving log history data.
 
-        :param status_query: The status query to provide status for
+        :param status_query: The status query containing the full content provided by the user. Ensure the entire content of the user's query is used without summarization or alteration.
         """
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.log_handler = RAGHandler(self.log_file_path, 'txt', self.openai_api_key)
@@ -180,7 +179,7 @@ class RoboticArmFunctions:
         """
         This function provide information or message based on SOP using the RAG handler.
 
-        :param query: The query to provide information for
+        :param query: The user query containing the full content provided by the user. Ensure the entire content of the user's query is used without summarization or alteration.
         """
         message = self.sop_handler.retrieve(query)
 

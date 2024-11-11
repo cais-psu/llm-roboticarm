@@ -12,6 +12,7 @@ If you do not know the answer do not make things up.
 Only use the functions you have been provided with.
 DO NOT directly respond to the user under ANY circumstances but only use function calls or tool calls.
 Make sure you state your name when you are messaging the other agent.
+Do not summarize the user's instructions or commands; instead, pass the full content as arguments in function calls.
 If the message exceeds 50 words, summarize it to 50 words or fewer.
 """
 

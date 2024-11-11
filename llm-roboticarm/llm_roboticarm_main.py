@@ -37,17 +37,23 @@ if __name__ == "__main__":
 
     # Specify paths for robot specification and parameter files
     robot_spec_file = os.path.join(robot_file_path, 'specification/xArm_SOP.pdf')
-    robot_params_general = os.path.join(robot_file_path, 'specification/params_general.json')
-    robot_params_movement = os.path.join(robot_file_path, 'specification/params_movement.json')
+    params_general_path = os.path.join(robot_file_path, 'specification/params_general.json')
+    params_movement_path = os.path.join(robot_file_path, 'specification/params_movement.json')
     
+    with open(params_general_path, 'r') as file:
+        params_general = json.load(file)
+
+    with open(params_movement_path, 'r') as file:
+        params_movement = json.load(file)
+
     # Initialize the RoboticArmAssembly with both parameters
-    assembly = RoboticArmAssembly(robot_params_general, robot_params_movement)
+    assembly = RoboticArmAssembly(params_general, params_movement)
 
     # User Creation
     user = agent_creator.create_user()
 
     # Initialize robotic arm functions using specification and general parameters
-    roboticarm_functions = functions.RoboticArmFunctions(robot_spec_file, robot_params_general, robot_params_movement)
+    roboticarm_functions = functions.RoboticArmFunctions(robot_spec_file, params_general, params_movement)
     roboticarm_agents = agent_creator.create_robot_agents(robot_init_list, roboticarm_functions)
     agents_list = [user] + roboticarm_agents
 
