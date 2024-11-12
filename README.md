@@ -13,18 +13,14 @@ A setup leveraging LLMs for robotic arm assembly.
 
 ### Installation
 1. **Configure Poetry**:
+   - pip install poetry
    - Use a local virtual environment within the project directory:
-   
-      ```python
       poetry config virtualenvs.in-project true
       poetry install
-      ```
 
    - If installation issues arise, try:
-      ```python
       poetry lock
       poetry install
-      ```
 
 2. **Run the Example**:
    - Execute `llm_roboticarm_main.py` using Poetry as the main example file.
