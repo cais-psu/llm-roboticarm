@@ -47,11 +47,11 @@ class RoboticArmAssembly:
         self.adaptation = False
         
         self.params_settings = {
-            'grip_speed':800,
+            'grip_speed':1000,
             'radius':-1,
             'auto_enable':True,
             'wait':True,
-            'speed': 180,
+            'speed': 280,
             'acc': 10000,
             'angle_speed': 20,
             'angle_acc': 500,
@@ -318,10 +318,10 @@ class RoboticArmAssembly:
 
         # Mapping of step type to movement sets and offsets
         step_data = {
-            "housing": {"set": self.housing_set, "set_90": self.housing_90, "x_offset": 235, "y_offset": 215},
-            "wedge": {"set": self.wedge_set, "set_90": self.wedge_90, "x_offset": 245, "y_offset": 230},
+            "housing": {"set": self.housing_set, "set_90": self.housing_90, "x_offset": 215, "y_offset": 215},
+            "wedge": {"set": self.wedge_set, "set_90": self.wedge_90, "x_offset": 235.5, "y_offset": 230},
             "spring": {"set": self.spring_set, "set_90": self.spring_90, "x_offset": 235, "y_offset": 230},
-            "cap": {"set": self.cap_set, "set_90": self.cap_90, "x_offset": 247, "y_offset": 230},
+            "cap": {"set": self.cap_set, "set_90": self.cap_90, "x_offset": 240, "y_offset": 230},
         }
 
         # Get the appropriate movement sets and offsets based on the step type
@@ -339,16 +339,16 @@ class RoboticArmAssembly:
             y_mid = (coord_list[1] + coord_list[3]) / 2
 
             # Adjust coordinates to the robot’s base position
-            x_adjusted = self.base[0] + y_mid * -0.6 + x_offset
-            y_adjusted = self.base[1] + x_mid * -0.6 + y_offset
+            x_adjusted = self.base[0] + y_mid * -0.6 + x_offset 
+            y_adjusted = self.base[1] + x_mid * -0.6 + y_offset 
 
         except Exception as e:
             return f"Error: the {step_type} object was not detected: {str(e)}"
 
         # Perform the movement based on the detected object's orientation
         try:
-            print("movement")
-            #self.movement(coord_list, movement_set, movement_set_90, x_adjusted, y_adjusted)
+            #print("movement")
+            self.movement(coord_list, movement_set, movement_set_90, x_adjusted, y_adjusted)
         except Exception as e:
             return f"Error during {step_type} movement: {str(e)}"
 
@@ -422,7 +422,7 @@ class RoboticArmAssembly:
         self._process_and_display_frame(frame, model, object_counts, object_coords)
 
         # Retrieve assembly steps based on adaptation mode
-        assembly_steps = self.params_general.get("assembly_steps", []) if self.adaptation else ["housing", "wedge", "spring", "cap"]
+        assembly_steps = self.params_general.get("assembly_steps", []) if self.adaptation else ["wedge","spring"]
 
         # Execute the assembly steps based on detected objects
         result, message = self._execute_assembly_steps(assembly_steps, step_working_on, object_coords, capture)
