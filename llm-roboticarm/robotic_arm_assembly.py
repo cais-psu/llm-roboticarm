@@ -228,51 +228,6 @@ class RoboticArmAssembly:
                 cap.release()
         return available_cameras
 
-    def count_objects(self, objectType):
-        """
-        Counts total objects of a specific type based on detection model.
-
-        Parameters
-        ----------
-        object_type : str
-            Type of object to detect (e.g., 'housing', 'wedge').
-        """
-        path = 'llm-roboticarm/vision_data/{}.pt'.format(objectType)
-
-        model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-        cap = cv2.VideoCapture(2)
-        #cap = cv2.VideoCapture(0)
-        while True:
-            ret, frame = cap.read()
-            frame = cv2.resize(frame, (640, 480))
-            frame = frame[0:480, 0:240]
-            results = model(frame)
-            coords_plus = results.pandas().xyxy[0]
-            object_count = 0
-            for index, row in coords_plus.iterrows():
-                name = row['name']
-                if name == 'housing-flat':
-                    x1 = int(row['xmin'])
-                    y1 = int(row['ymin'])
-                    x2 = int(row['xmax'])
-                    y2 = int(row['ymax'])
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    object_count += 1
-                    
-            if object_count > 1:
-                cv2.putText(frame, f'{objectType} objects: {object_count}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                cv2.imshow(f'{objectType} Objects Detection', frame)
-                # Escape loop on pressing Esc key
-                if cv2.waitKey(1) & 0xFF == 27:
-                    break
-                cap.release()
-                cv2.destroyAllWindows()
-                exit()
-            else:
-                cap.release()
-                cv2.destroyAllWindows()
-                return
-
     def _verbal_updates(self, step_working_on: str):
         """
         Provides verbal updates based on the assembly step.
@@ -392,7 +347,8 @@ class RoboticArmAssembly:
 
         # Perform the movement based on the detected object's orientation
         try:
-            self.movement(coord_list, movement_set, movement_set_90, x_adjusted, y_adjusted)
+            print("movement")
+            #self.movement(coord_list, movement_set, movement_set_90, x_adjusted, y_adjusted)
         except Exception as e:
             return f"Error during {step_type} movement: {str(e)}"
 

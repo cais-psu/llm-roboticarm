@@ -15,7 +15,7 @@ class UserInterface:
         self.message_log.pack(padx=10, pady=10)
         
         # Initialize with a message
-        self.log_message("System", "Say 'hello xarm' to start and say 'end of command' to finish.")
+        self.log_message("System", "Say 'hello' to initiate the command.")
         
         self.uploaded_file_path = None  # Store the path of the uploaded file
 

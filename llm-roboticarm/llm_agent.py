@@ -245,26 +245,33 @@ class LlmAgent:
         msgs: list[dict[str, str]],
         model: str,
         with_functions: bool = True,
-        temperature: float = 0.0,
-        function_call: dict = {}
+        temperature: float = 0.0
     ) -> openai.openai_object.OpenAIObject:
         response = None
         while not response:
             try:
-                if with_functions:
+                if with_functions and self.message_function_info:
                     response = openai.chat.completions.create(
                         model=model,
                         messages=msgs,
                         functions=self.message_function_info,
-                        temperature=temperature,
-                        function_call=function_call,
+                        temperature=temperature
                     )
+                else:
+                    response = openai.chat.completions.create(
+                        model=model,
+                        messages=msgs,
+                        temperature=temperature
+                    )
+            except openai.error.InvalidRequestError as e:
+                self.logger_agent.error(f"Error code: {e.http_status} - {e.json_body}")
+                break  # Exit the loop on unrecoverable error
             except openai.APIError as e:
                 self.logger_agent.error(e)
             except openai.RateLimitError as e:
                 self.logger_agent.error(e)
-
-        return response    
+        return response
+    
     
     def chat(self, prompt: str, model: str = None, temperature: float = 0.0) -> str:
         """
@@ -284,6 +291,7 @@ class LlmAgent:
         tuple
             Result of the function and messages sent to the model.
         """
+        
         with_functions = len(self.function_info) > 0
         if model:
             model_ = model
@@ -313,6 +321,7 @@ class LlmAgent:
                 self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
                 # execute python actionable functions
                 func_res = self.executables[func](**args)
+                func_res['func_name'] = func  # Include the function name in the result
 
             self.logger_agent.info(f"Function returned `{func_res}`.")
 
@@ -330,92 +339,74 @@ class LlmAgent:
 
         return func_res, msgs
 
-    def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> str:
-        # choose the right model
-        with_functions = len(self.function_info) > 0
-        if model:
-            model_ = model
-        elif with_functions:
-            model_ = self.model
+    def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> None:
+        func_name = func_res.get('func_name')
 
-        # Manufacturing process is executed and completed from the previous chat function
-        if func_res['func_type'] == "task":
-            if func_res['step_working_on'] == "completed":
-                # get response from LLM
-                func_msg = {
-                    "role": "function",
-                    "name": "xArm",
-                    "content": func_res['content'],
-                    "status": "Idle"
-                }
-                msgs.append(func_msg)
-                self.logger_agent.info(f"Msgs: {msgs}")
-                
-                function_call = {"name": f"user"}
+        # Check if the function is 'provide_status' or 'provide_information_or_message'
+        if func_name in ['provide_status', 'provide_information_or_message']:
+            # Send the response directly to the user without calling the LLM again
+            message = func_res['content']
+            args = {'sender': self.name, 'message': message}
+
+            # Log the message
+            self.logger_agent.info(f"Sending message to user: {args}")
+
+            # Send the message to the user
+            user_messaging_function = self.message_executables.get('user')
+            if user_messaging_function:
+                user_messaging_function(**args)
             else:
-                func_msg = {
-                    "role": "function",
-                    "name": "xArm",
-                    "content": f"{func_res['content']}, step_working_on: {func_res['step_working_on']}",
-                    "status": "Idle"
-                }
-                msgs.append(func_msg)
-                self.logger_agent.info(f"Msgs: {msgs}")
-                
-                function_call = {"name": f"user"}
+                self.logger_agent.error("User messaging function not found.")
         else:
-            # get response from LLM
+            # Proceed with the existing logic for other functions
+            with_functions = len(self.function_info) > 0
+            model_ = model or (self.model if with_functions else None)
+
+            # Prepare the function message
             func_msg = {
                 "role": "function",
-                "name": "xArm",
+                "name": self.name,
                 "content": func_res['content'],
             }
             msgs.append(func_msg)
             self.logger_agent.info(f"Msgs: {msgs}")
-            
-            function_call = {"name": f"user"}
-        self.msg_history_as_text += self._msg_history_to_prompt([(func_msg['name'], func_msg['content'])])
-        
-        # get response from LLM again
-        response = self.__get_message_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
-        self.logger_agent.info(response)
-        msgs.append(response.choices[0].message)
-        
-        try:
-            if response.choices[0].finish_reason == "stop":
-                function_call = response.choices[0].message.function_call
-                if function_call:
-                    func = function_call.name
-                    args = json.loads(function_call.arguments)
+
+            # Update message history
+            self.msg_history_as_text += self._msg_history_to_prompt([(func_msg['name'], func_msg['content'])])
+
+            # Get response from LLM again
+            response = self.__get_message_response(
+                msgs=msgs, model=model_, with_functions=True, temperature=temperature
+            )
+            self.logger_agent.info(response)
+            msgs.append(response.choices[0].message)
+
+            try:
+                if response.choices[0].finish_reason == "stop":
+                    func = response.choices[0].message.function_call.name
+                    args = json.loads(response.choices[0].message.function_call.arguments)
+                    self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
                 else:
-                    func = "user"
-                    message = response.choices[0].message.content
-                    args = {"sender": "xArm", "message": message}
+                    func = response.choices[0].message.function_call.name
+                    args = json.loads(response.choices[0].message.function_call.arguments)
+                    self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
 
-                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
-            else:
-                func = response.choices[0].message.function_call.name
-                args = json.loads(response.choices[0].message.function_call.arguments)
-                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
+                # Execute python 'message' functions
+                func_res = self.message_executables[func](**args)
+                self.logger_agent.info(f"Function returned `{func_res}`.")
 
-            # execute python 'message' functions
-            func_res = self.message_executables[func](**args)
-
-            self.logger_agent.info(f"Function returned `{func_res}`.")
-
-        except KeyError:
-            if response.choices[0].finish_reason == "stop":
-                if 'completed' in response.choices[0].message.content:
-                    #Clear the completed task
-                    self.tasks.clear()
-                else:
-                    self.logger_agent.info("No further function call to execute")
-        except Exception as e:
-            self.logger_agent.error(f"An error occurred during function execution: {e}")  
+            except KeyError:
+                if response.choices[0].finish_reason == "stop":
+                    if 'completed' in response.choices[0].message.content:
+                        self.tasks.clear()
+                    else:
+                        self.logger_agent.info("No further function call to execute")
+            except Exception as e:
+                self.logger_agent.error(f"An error occurred during function execution: {e}")
 
     def process_inbox(self):
         """
-        Processes incoming messages in the inbox, invoking the chat function.
+        Processes incoming messages in the inbox,  oking the chat function.
         """        
         def handle_message(sender, content):
             inbox_identifier = general_utils.get_inbox_identifier(sender, content)

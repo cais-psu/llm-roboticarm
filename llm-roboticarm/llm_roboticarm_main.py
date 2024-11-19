@@ -11,24 +11,23 @@ import json
 
 def run_voice_control(voice_control, user, roboticarm_agents):
     """
-    Starts the voice control system to listen for hotwords and execute appropriate 
-    actions upon detection.
+    Starts the voice control system to monitor microphone activity and execute 
+    appropriate actions upon sound detection.
 
     Args:
-        voice_control (VoiceControl): The voice control instance for hotword detection.
+        voice_control (VoiceControl): The voice control instance for sound detection.
         user (User): The user agent interacting with the voice control.
         roboticarm_agents (list): List of robotic arm agent instances.
     """
-    
-    # Begin listening for hotwords with start and stop actions defined by lambdas
-    voice_control.listen_for_hotwords(
-        lambda: voice_control.start_hotword_detected(UserInterface.log_message_to_ui),
-        lambda: voice_control.stop_hotword_detected(UserInterface.log_message_to_ui, user, roboticarm_agents)
+    # Monitor microphone activity for sound detection
+    voice_control.monitor_microphone_activity(
+        lambda: voice_control.start_sound_detected(UserInterface.log_message_to_ui),
+        lambda: voice_control.stop_sound_detected(UserInterface.log_message_to_ui, user, roboticarm_agents)
     )
 
 if __name__ == "__main__":
-    # Initialize the VoiceControl class
-    voice_control = VoiceControl()
+    # Initialize the VoiceControl class for CMTECK microphone
+    voice_control = VoiceControl(target_device_name="CMTECK")
 
     # Define the file paths for the JSON files
     robot_file_path = 'llm-roboticarm/initialization/robots/'

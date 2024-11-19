@@ -5,6 +5,7 @@ import re
 import json
 from rag_handler import RAGHandler
 from langchain_openai import ChatOpenAI
+from prompts import PROVIDE_INFORMATION_INSTRUCTIONS
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'xArm-Python-SDK-master'))
 
@@ -70,8 +71,8 @@ class RoboticArmFunctions:
         """
         This function performs a task by retrieving SOP information, generating parameters, and executing the code.
 
-        :param task_description: The description of the task to perform
-        :param step_working_on: name of the assembly step that is working on
+        :param task_description: The task description content provided by the user at the end of the sentence right after "The requester user sent this message:". If there are multiple requests from the user, ensure that the query contains only the **last command** without any summarization or alteration.
+        :param step_working_on: The name of the assembly step that is working on. It should only be from 'housing', 'wedge', 'spring', and 'cap'. The user will usually provide which step it has been fixing or working on the **end of the command, with in the last sentence**.
         """
         # Step 1: Retrieve SOP information
         self.sop_information = self.provide_information_or_message(task_description)
@@ -163,7 +164,7 @@ class RoboticArmFunctions:
         """
         This function provides the current status and what the robot has been doing based on retrieving log history data.
 
-        :param status_query: The status query containing the full content provided by the user. Ensure the entire content of the user's query is used without summarization or alteration.
+        :param status_query: The status query should only contain the content provided by the user at the end of the sentence right after "The requester user sent this message:". If there are multiple requests from the user, ensure that the query contains only the **last command** without any summarization or alteration.
         """
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.log_handler = RAGHandler(self.log_file_path, 'txt', self.openai_api_key)
@@ -179,9 +180,9 @@ class RoboticArmFunctions:
         """
         This function provide information or message based on SOP using the RAG handler.
 
-        :param query: The user query containing the full content provided by the user. Ensure the entire content of the user's query is used without summarization or alteration.
+        :param query: The full content provided by the user only at the end of the sentence right after "The requester user sent this message:". If there are multiple requests from the user, ensure that the query contains only the **last command** without any summarization or alteration.
         """
-        message = self.sop_handler.retrieve(query)
+        message = self.sop_handler.retrieve(query + PROVIDE_INFORMATION_INSTRUCTIONS)
 
         result = {
             "func_type": "info",

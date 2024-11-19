@@ -13,6 +13,7 @@ Only use the functions you have been provided with.
 DO NOT directly respond to the user under ANY circumstances but only use function calls or tool calls.
 Make sure you state your name when you are messaging the other agent.
 Do not summarize the user's instructions or commands; instead, pass the full content as arguments in function calls.
+The full content provided by the user is only at the end of the sentence right after "The requester user sent this message:".
 If the message exceeds 50 words, summarize it to 50 words or fewer.
 """
 
@@ -20,6 +21,10 @@ VERBAL_UPDATES_INSTRUCTIONS = """\
 Provide information on how the robot will perform the assigned assembly step to inform the human operator about the process. 
 If starting from the beginning or if the step is not specific, give general assembly details. 
 Include safety instructions for the human operator on how to behave during the assembly process.
+Ensure all information is clear and within 50 words.
+"""
+
+PROVIDE_INFORMATION_INSTRUCTIONS = """\
 Ensure all information is clear and within 50 words.
 """
 
