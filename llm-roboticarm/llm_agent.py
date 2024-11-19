@@ -308,13 +308,18 @@ class LlmAgent:
         self.logger_agent.info(response)
 
         msgs.append(response.choices[0].message)
-
+        func_res = {}
         try:
             if response.choices[0].finish_reason == "stop":
-                func = "user"
+                func = "provide_information_or_message"
                 message = response.choices[0].message.content
                 args = {"sender":"","message": message}
                 self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
+                func_res = {
+                    "func_type": "info",
+                    "content": message,
+                    "func_name": func  # Include the function name if needed
+                }
             else:
                 func = response.choices[0].message.function_call.name
                 args = json.loads(response.choices[0].message.function_call.arguments)
