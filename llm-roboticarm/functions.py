@@ -38,8 +38,9 @@ class RoboticArmFunctions:
         Instructions:
         1. If the task description specifies that certain assembly steps will be completed by humans or should be skipped, remove those steps from the "assembly_steps" list.
         2. Ensure the remaining steps in the "assembly_steps" list reflect the order in which the cable shark assembly should proceed based on the task description.
-        3. The "assembly_functions" list should remain unchanged unless explicitly stated in the task description.
-        4. Do not include any additional explanations or descriptions in the output, only provide the modified parameter file in JSON format.
+        3. "assembly_steps" list should never be empty.
+        4. The "assembly_functions" list should remain unchanged unless explicitly stated in the task description.
+        5. Do not include any additional explanations or descriptions in the output, only provide the modified parameter file in JSON format.
 
         Task Description:
         {task_description}
@@ -69,10 +70,10 @@ class RoboticArmFunctions:
 
     def perform_tasks(self, task_description: str, step_working_on: str) -> dict:
         """
-        This function performs a task by retrieving SOP information, generating parameters, and executing the code.
+        This function performs a task or an assembly by retrieving SOP information, generating parameters, and executing the code.
 
         :param task_description: The task description content provided by the user at the end of the sentence right after "The requester user sent this message:". If there are multiple requests from the user, ensure that the query contains only the **last command** without any summarization or alteration.
-        :param step_working_on: The name of the assembly step that is working on. It should only be from 'housing', 'wedge', 'spring', and 'cap'. The user will usually provide which step it has been fixing or working on the **end of the command, with in the last sentence**.
+        :param step_working_on: The name of the assembly step currently being worked on. It should be one of 'housing', 'wedge', or 'spring'. If the task is a general 'assembly' request, start from the beginning with the 'housing' assembly step. If an error was fixed by a human, resume from the last step that was being worked on. The user will usually specify which step has been fixed or is being worked on at the **end of their command, within the last sentence**.
         """
         # Step 1: Retrieve SOP information
         self.sop_information = self.provide_information_or_message(task_description)
@@ -164,7 +165,7 @@ class RoboticArmFunctions:
         """
         This function provides the current status and what the robot has been doing based on retrieving log history data.
 
-        :param status_query: The status query should only contain the content provided by the user at the end of the sentence right after "The requester user sent this message:". If there are multiple requests from the user, ensure that the query contains only the **last command** without any summarization or alteration.
+        :param status_query: The status query should only contain the content provided by the user at the end of the sentence right after "The requester user sent this message:". The sentence is usually in a question asking for information. If there are multiple requests from the user, ensure that the query contains only the **last command** without any summarization or alteration.
         """
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.log_handler = RAGHandler(self.log_file_path, 'txt', self.openai_api_key)
@@ -180,7 +181,7 @@ class RoboticArmFunctions:
         """
         This function provide information or message based on SOP using the RAG handler.
 
-        :param query: The full content provided by the user only at the end of the sentence right after "The requester user sent this message:". If there are multiple requests from the user, ensure that the query contains only the **last command** without any summarization or alteration.
+        :param query: The full content provided by the user only at the end of the sentence right after "The requester user sent this message:". The sentence is usually in a question asking for information. If there are multiple requests from the user, ensure that the query contains only the **last command** without any summarization or alteration.
         """
         message = self.sop_handler.retrieve(query + PROVIDE_INFORMATION_INSTRUCTIONS)
 

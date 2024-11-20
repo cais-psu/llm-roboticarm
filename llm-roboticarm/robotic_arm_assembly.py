@@ -44,7 +44,7 @@ class RoboticArmAssembly:
         self.variables = {}
         self.a,self.base=self.arm.get_position()
 
-        self.adaptation = False
+        self.adaptation = True
         
         self.params_settings = {
             'grip_speed':1000,
@@ -347,7 +347,7 @@ class RoboticArmAssembly:
 
         # Perform the movement based on the detected object's orientation
         try:
-            #print("movement")
+            print("movement")
             self.movement(coord_list, movement_set, movement_set_90, x_adjusted, y_adjusted)
         except Exception as e:
             return f"Error during {step_type} movement: {str(e)}"
@@ -397,6 +397,7 @@ class RoboticArmAssembly:
 
     #@log_execution
     def robotic_assembly(self, step_working_on: str):
+        '''
         """
         Starts the robotic assembly process by performing each step sequentially.
         If the step is not part of the assembly steps, it starts from the beginning.
@@ -436,6 +437,7 @@ class RoboticArmAssembly:
             return result, message  
         else:
             return "completed", "Assembly process completed successfully."
+            '''
 
 if __name__ == "__main__":
     params_general_path = 'llm-roboticarm/initialization/robots/specification/params_general.json'
