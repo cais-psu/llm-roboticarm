@@ -343,18 +343,43 @@ class LlmAgent:
             self.logger_agent.error(f"An error occurred during function execution: {e}")            
 
         return func_res, msgs
+    
+    def __get_direct_response(self, msgs, temperature=0.0):
+        response = None
+        while not response:
+            try:
+                response = openai.chat.completions.create(
+                    model=self.model,
+                    messages=msgs,
+                    temperature=temperature
+                )
+            except openai.error.OpenAIError as e:
+                print(f"Error: {e}")
+        return response
 
     def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> None:
         func_name = func_res.get('func_name')
 
         # Check if the function is 'provide_status' or 'provide_information_or_message'
         if func_name in ['provide_status', 'provide_information_or_message']:
-            # Send the response directly to the user without calling the LLM again
-            message = func_res['content']
-            args = {'sender': self.name, 'message': message}
 
-            # Log the message
-            self.logger_agent.info(f"Sending message to user: {args}")
+            # Prepare the function message
+            func_msg = {
+                "role": "function",
+                "name": self.name,
+                "content": func_res['content'],
+            }
+            msgs.append(func_msg)
+            self.logger_agent.info(f"Msgs: {msgs}")
+
+            # Get response from LLM again
+            response = self.__get_direct_response(
+                msgs=msgs, temperature=temperature
+            )
+            self.logger_agent.info(response)
+            msgs.append(response.choices[0].message)
+
+            args = {'sender': self.name, 'message': response.choices[0].message.content}
 
             # Send the message to the user
             user_messaging_function = self.message_executables.get('user')
