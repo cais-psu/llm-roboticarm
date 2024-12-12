@@ -44,7 +44,7 @@ class RoboticArmAssembly:
         self.variables = {}
         self.a,self.base=self.arm.get_position()
 
-        self.adaptation = True
+        self.adaptation = False
         
         self.params_settings = {
             'grip_speed':1000,
@@ -251,7 +251,7 @@ class RoboticArmAssembly:
         """
         path = 'llm-roboticarm/vision_data/combined.pt'
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local', force_reload=True)
-        capture = cv2.VideoCapture(2)
+        capture = cv2.VideoCapture(0)
         return model, capture
 
     def _process_and_display_frame(self, frame, model, object_counts, object_coords):
@@ -347,7 +347,7 @@ class RoboticArmAssembly:
 
         # Perform the movement based on the detected object's orientation
         try:
-            print("movement")
+            #print("movement")
             self.movement(coord_list, movement_set, movement_set_90, x_adjusted, y_adjusted)
         except Exception as e:
             return f"Error during {step_type} movement: {str(e)}"
@@ -397,7 +397,6 @@ class RoboticArmAssembly:
 
     #@log_execution
     def robotic_assembly(self, step_working_on: str):
-        '''
         """
         Starts the robotic assembly process by performing each step sequentially.
         If the step is not part of the assembly steps, it starts from the beginning.
@@ -423,7 +422,7 @@ class RoboticArmAssembly:
         self._process_and_display_frame(frame, model, object_counts, object_coords)
 
         # Retrieve assembly steps based on adaptation mode
-        assembly_steps = self.params_general.get("assembly_steps", []) if self.adaptation else ["wedge","spring"]
+        assembly_steps = self.params_general.get("assembly_steps", []) if self.adaptation else ['housing', "wedge","spring"]
 
         # Execute the assembly steps based on detected objects
         result, message = self._execute_assembly_steps(assembly_steps, step_working_on, object_coords, capture)
@@ -437,7 +436,7 @@ class RoboticArmAssembly:
             return result, message  
         else:
             return "completed", "Assembly process completed successfully."
-            '''
+            
 
 if __name__ == "__main__":
     params_general_path = 'llm-roboticarm/initialization/robots/specification/params_general.json'

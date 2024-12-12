@@ -46,7 +46,7 @@ if __name__ == "__main__":
         params_movement = json.load(file)
 
     # Initialize the RoboticArmAssembly with both parameters
-    #assembly = RoboticArmAssembly(params_general, params_movement)
+    assembly = RoboticArmAssembly(params_general, params_movement)
 
     # User Creation
     user = agent_creator.create_user()
