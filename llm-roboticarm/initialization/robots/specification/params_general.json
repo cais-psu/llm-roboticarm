@@ -1,0 +1,4 @@
+{
+    "assembly_steps": ["housing", "wedge", "spring"],
+    "assembly_functions": ["robotic_assembly"]
+}

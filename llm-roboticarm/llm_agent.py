@@ -8,7 +8,9 @@ Agent wrapping the LangChain API
 from __future__ import annotations
 
 import json
-import logging
+#import logging
+import log_setup
+
 import os
 import threading
 import general_utils
@@ -30,6 +32,10 @@ if OPENAI_API_KEY is None:
 openai.api_key = OPENAI_API_KEY
 
 class LlmAgent:
+    """
+    Represents an AI-powered agent that can interact with users and other agents, 
+    process instructions, execute functions, and log actions.
+    """    
     def __init__(
         self,
         model: str = None,
@@ -39,30 +45,31 @@ class LlmAgent:
         functions_: list = None,
 
     ) -> None:
-        ############################ Set up agent-specific logger ############################
-        # Logger for agent-specific logs
-        self.logger_agent = logging.getLogger(f'agent_{name}')
-        self.logger_agent.setLevel(logging.INFO)
-        self.logger_agent.propagate = False
-        agent_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_agent.log', mode='a')
-        agent_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger_agent.addHandler(agent_file_handler)
-        
-        # Logger for xArm action logs
-        self.logger_action = logging.getLogger(f'action_{name}')
-        self.logger_action.setLevel(logging.INFO)
-        self.logger_action.propagate = False
-        actions_file_handler = logging.FileHandler(f'llm-roboticarm/log/{name}_actions.log', mode='a')
-        actions_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [ACTION] - %(message)s'))
-        self.logger_action.addHandler(actions_file_handler)
+        """
+        Initializes the LlmAgent class.
 
-        # Console handler for both loggers
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger_agent.addHandler(console_handler)
-        self.logger_action.addHandler(console_handler)
-        ######################################################################################
-        self.model = "gpt-4o-2024-08-06" if model is None else model
+        Parameters
+        ----------
+        model : str, optional
+            The model to be used for generating responses (default is "gpt-4o").
+        name : str, optional
+            The name of the agent.
+        annotation : str, optional
+            Additional information about the agent.
+        instructions : str, optional
+            Initial instructions for the agent.
+        functions_ : list, optional
+            List of Python functions that the agent can execute.
+        """        
+
+        # Set up logging for both agent-specific and action logs
+        self.log_setup = log_setup.LogSetup(name="xArm")
+        self.log_setup.setup_logging("agent")
+        self.log_setup.setup_logging("action")
+        self.logger_agent = self.log_setup.logger_agent
+        self.logger_action = self.log_setup.logger_action
+
+        self.model = "gpt-4o" if model is None else model
         self.name = name
         self.annotation = annotation
 
@@ -96,12 +103,35 @@ class LlmAgent:
 
         # Log that the xArm agent has been initialized and the status is idle
         self.logger_action.info("The xArm has been initialized and the status is idle.")
-
+        
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
+        """
+        Adds a message to the inbox for processing.
+        
+        Parameters
+        ----------
+        sender : str
+            The sender of the message.
+        message : list[tuple[str, str]]
+            Message content in list of tuples format.
+        
+        Returns
+        -------
+        str
+            Confirmation message indicating receipt.
+        """        
         self.inbox.append([(sender, message)])
         return f"{self.name} Agent received a message."
     
     def setup_message_functions(self, peers: list = None):
+        """
+        Sets up messaging functions for communication with peer agents.
+
+        Parameters
+        ----------
+        peers : list
+            List of peer agents for inter-agent communication.
+        """        
         for peer in peers:
             _description_extended = (
                 f"This function messages a user, whose description is as follows:\n"
@@ -132,8 +162,18 @@ class LlmAgent:
                 self.message_executables[peer.name] = getattr(peer, "message")
 
     def _msg_history_to_prompt(self, msg_history: list[tuple[str, str]]) -> str:
-        """ Turn a message history as it is stored in the query into a prompt history to be continued by the LLM
-        Doing this as plain text allows having several agents in the conversation.
+        """
+        Converts message history into a prompt for the language model.
+
+        Parameters
+        ----------
+        msg_history : list[tuple[str, str]]
+            List of messages in (sender, content) format.
+
+        Returns
+        -------
+        str
+            Prompt formatted as message history.
         """
         self.logger_agent.info(f"{msg_history=}")
         messages = "\n".join([" The requester is " + m[0] + ". The requester " + m[0] + " sent this message: " + m[1] for m in msg_history])
@@ -152,9 +192,28 @@ class LlmAgent:
         temperature: float = 0.0,
         function_call: dict = {}
     ) -> openai.openai_object.OpenAIObject:
-        response = None
+        """
+        Requests a response from OpenAI API with optional function call.
 
-        print(self.function_info)
+        Parameters
+        ----------
+        msgs : list
+            Messages to include in the API call.
+        model : str
+            Model to use for the call.
+        with_functions : bool, optional
+            Whether to enable functions (default is True).
+        temperature : float, optional
+            Controls randomness (default is 0.0).
+        function_call : dict, optional
+            Specific function call configuration (default is empty dict).
+        
+        Returns
+        -------
+        openai.openai_object.OpenAIObject
+            The API response.
+        """        
+        response = None
 
         while not response:
             try:
@@ -186,31 +245,53 @@ class LlmAgent:
         msgs: list[dict[str, str]],
         model: str,
         with_functions: bool = True,
-        temperature: float = 0.0,
-        function_call: dict = {}
+        temperature: float = 0.0
     ) -> openai.openai_object.OpenAIObject:
         response = None
-
-
         while not response:
             try:
-                if with_functions:
+                if with_functions and self.message_function_info:
                     response = openai.chat.completions.create(
                         model=model,
                         messages=msgs,
                         functions=self.message_function_info,
-                        temperature=temperature,
-                        function_call=function_call,
+                        temperature=temperature
                     )
+                else:
+                    response = openai.chat.completions.create(
+                        model=model,
+                        messages=msgs,
+                        temperature=temperature
+                    )
+            except openai.error.InvalidRequestError as e:
+                self.logger_agent.error(f"Error code: {e.http_status} - {e.json_body}")
+                break  # Exit the loop on unrecoverable error
             except openai.APIError as e:
                 self.logger_agent.error(e)
             except openai.RateLimitError as e:
                 self.logger_agent.error(e)
-
-        return response    
+        return response
+    
     
     def chat(self, prompt: str, model: str = None, temperature: float = 0.0) -> str:
-        # choose the right model
+        """
+        Sends a chat message to the language model and processes the response.
+
+        Parameters
+        ----------
+        prompt : str
+            The prompt to send to the model.
+        model : str, optional
+            Model to use for the call (default is self.model).
+        temperature : float, optional
+            Controls randomness of the response (default is 0.0).
+        
+        Returns
+        -------
+        tuple
+            Result of the function and messages sent to the model.
+        """
+        
         with_functions = len(self.function_info) > 0
         if model:
             model_ = model
@@ -227,19 +308,25 @@ class LlmAgent:
         self.logger_agent.info(response)
 
         msgs.append(response.choices[0].message)
-
+        func_res = {}
         try:
             if response.choices[0].finish_reason == "stop":
-                func = "user"
+                func = "provide_information_or_message"
                 message = response.choices[0].message.content
                 args = {"sender":"","message": message}
                 self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
+                func_res = {
+                    "func_type": "info",
+                    "content": message,
+                    "func_name": func  # Include the function name if needed
+                }
             else:
                 func = response.choices[0].message.function_call.name
                 args = json.loads(response.choices[0].message.function_call.arguments)
                 self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
                 # execute python actionable functions
                 func_res = self.executables[func](**args)
+                func_res['func_name'] = func  # Include the function name in the result
 
             self.logger_agent.info(f"Function returned `{func_res}`.")
 
@@ -256,91 +343,101 @@ class LlmAgent:
             self.logger_agent.error(f"An error occurred during function execution: {e}")            
 
         return func_res, msgs
+    
+    def __get_direct_response(self, msgs, temperature=0.0):
+        response = None
+        while not response:
+            try:
+                response = openai.chat.completions.create(
+                    model=self.model,
+                    messages=msgs,
+                    temperature=temperature
+                )
+            except openai.error.OpenAIError as e:
+                print(f"Error: {e}")
+        return response
 
-    def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> str:
-        # choose the right model
-        with_functions = len(self.function_info) > 0
-        if model:
-            model_ = model
-        elif with_functions:
-            model_ = self.model
+    def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> None:
+        func_name = func_res.get('func_name')
 
-        # Manufacturing process is executed and completed from the previous chat function
-        if func_res['func_type'] == "task":
-            if func_res['step_working_on'] == "completed":
-                # get response from LLM
-                func_msg = {
-                    "role": "function",
-                    "name": "xArm",
-                    "content": func_res['content'],
-                    "status": "Idle"
-                }
-                msgs.append(func_msg)
-                self.logger_agent.info(f"Msgs: {msgs}")
-                
-                function_call = {"name": f"user"}
-            else:
-                func_msg = {
-                    "role": "function",
-                    "name": "xArm",
-                    "content": f"{func_res['content']}, step_working_on: {func_res['step_working_on']}",
-                    "status": "Idle"
-                }
-                msgs.append(func_msg)
-                self.logger_agent.info(f"Msgs: {msgs}")
-                
-                function_call = {"name": f"user"}
-        else:
-            # get response from LLM
+        # Check if the function is 'provide_status' or 'provide_information_or_message'
+        if func_name in ['provide_status', 'provide_information_or_message']:
+
+            # Prepare the function message
             func_msg = {
                 "role": "function",
-                "name": "xArm",
+                "name": self.name,
                 "content": func_res['content'],
             }
             msgs.append(func_msg)
             self.logger_agent.info(f"Msgs: {msgs}")
-            
-            function_call = {"name": f"user"}
-        self.msg_history_as_text += self._msg_history_to_prompt([(func_msg['name'], func_msg['content'])])
-        
-        # get response from LLM again
-        response = self.__get_message_response(msgs=msgs, model=model_, with_functions=True, temperature=temperature, function_call=function_call)
-        self.logger_agent.info(response)
-        msgs.append(response.choices[0].message)
-        
-        try:
-            if response.choices[0].finish_reason == "stop":
-                function_call = response.choices[0].message.function_call
-                if function_call:
-                    func = function_call.name
-                    args = json.loads(function_call.arguments)
-                else:
-                    func = "user"
-                    message = response.choices[0].message.content
-                    args = {"sender": "xArm", "message": message}
 
-                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
+            # Get response from LLM again
+            response = self.__get_direct_response(
+                msgs=msgs, temperature=temperature
+            )
+            self.logger_agent.info(response)
+            msgs.append(response.choices[0].message)
+
+            args = {'sender': self.name, 'message': response.choices[0].message.content}
+
+            # Send the message to the user
+            user_messaging_function = self.message_executables.get('user')
+            if user_messaging_function:
+                user_messaging_function(**args)
             else:
-                func = response.choices[0].message.function_call.name
-                args = json.loads(response.choices[0].message.function_call.arguments)
-                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
+                self.logger_agent.error("User messaging function not found.")
+        else:
+            # Proceed with the existing logic for other functions
+            with_functions = len(self.function_info) > 0
+            model_ = model or (self.model if with_functions else None)
 
-            # execute python 'message' functions
-            func_res = self.message_executables[func](**args)
+            # Prepare the function message
+            func_msg = {
+                "role": "function",
+                "name": self.name,
+                "content": func_res['content'],
+            }
+            msgs.append(func_msg)
+            self.logger_agent.info(f"Msgs: {msgs}")
 
-            self.logger_agent.info(f"Function returned `{func_res}`.")
+            # Update message history
+            self.msg_history_as_text += self._msg_history_to_prompt([(func_msg['name'], func_msg['content'])])
 
-        except KeyError:
-            if response.choices[0].finish_reason == "stop":
-                if 'completed' in response.choices[0].message.content:
-                    #Clear the completed task
-                    self.tasks.clear()
+            # Get response from LLM again
+            response = self.__get_message_response(
+                msgs=msgs, model=model_, with_functions=True, temperature=temperature
+            )
+            self.logger_agent.info(response)
+            msgs.append(response.choices[0].message)
+
+            try:
+                if response.choices[0].finish_reason == "stop":
+                    func = response.choices[0].message.function_call.name
+                    args = json.loads(response.choices[0].message.function_call.arguments)
+                    self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
                 else:
-                    self.logger_agent.info("No further function call to execute")
-        except Exception as e:
-            self.logger_agent.error(f"An error occurred during function execution: {e}")  
+                    func = response.choices[0].message.function_call.name
+                    args = json.loads(response.choices[0].message.function_call.arguments)
+                    self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
+
+                # Execute python 'message' functions
+                func_res = self.message_executables[func](**args)
+                self.logger_agent.info(f"Function returned `{func_res}`.")
+
+            except KeyError:
+                if response.choices[0].finish_reason == "stop":
+                    if 'completed' in response.choices[0].message.content:
+                        self.tasks.clear()
+                    else:
+                        self.logger_agent.info("No further function call to execute")
+            except Exception as e:
+                self.logger_agent.error(f"An error occurred during function execution: {e}")
 
     def process_inbox(self):
+        """
+        Processes incoming messages in the inbox,  oking the chat function.
+        """        
         def handle_message(sender, content):
             inbox_identifier = general_utils.get_inbox_identifier(sender, content)
             if self.task_states.get(inbox_identifier) not in ['running', 'completed']:
@@ -365,6 +462,14 @@ class LlmAgent:
             time.sleep(0.1)
 
     def run(self, peers: list = None) -> None:
+        """
+        Starts the agent's inbox processing in a background thread.
+
+        Parameters
+        ----------
+        peers : list
+            List of peer agents to set up messaging functions.
+        """        
         self.setup_message_functions(peers)
         threading.Thread(target=self.process_inbox).start()
         
@@ -382,24 +487,41 @@ class User:
 
         self.voice_control = VoiceControl()  # Assuming VoiceControl is initialized without arguments
 
-        #### Set up agent-specific logger ####
-        self.logger = logging.getLogger(f'agent_{self.name}')
-        self.logger.setLevel(logging.INFO)
-        self.logger.propagate = False
-        file_handler = logging.FileHandler(f'llm-roboticarm/log/{self.name}_agent.log', mode='a')
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
-        ########################################
-        
+        # Set up agent-specific logger
+        self.log_setup = log_setup.LogSetup(name="User")
+        self.log_setup.setup_logging("agent")
+        self.logger = self.log_setup.logger_agent
+
     def message(self, sender: str, message: list[tuple[str, str]]) -> str:
+        """
+        Adds a received message to the inbox for processing.
+
+        Parameters
+        ----------
+        sender : str
+            The name of the message sender.
+        message : list[tuple[str, str]]
+            The message content in a list of tuples.
+
+        Returns
+        -------
+        str
+            Confirmation message indicating the message was received.
+        """        
         self.inbox.append([(sender, message)])
         return "User received a message."
 
     def _speak_and_log(self, message: str, sender: str):
+        """
+        Outputs a message through voice control and logs it to the UI.
+
+        Parameters
+        ----------
+        message : str
+            The message content.
+        sender : str
+            The sender's name for logging purposes.
+        """        
         threads = [
             threading.Thread(target=self.voice_control.text_to_speech, args=(message,)),
             threading.Thread(target=UserInterface.log_message_to_ui, args=(sender, message))
@@ -410,6 +532,7 @@ class User:
             thread.join()
 
     def process_inbox(self, peers: list[Union[LlmAgent, User]]):
+        """Continuously processes incoming messages in the inbox."""
         while True:
             if self.inbox:
                 new_message = self.inbox.pop(0)
@@ -423,6 +546,7 @@ class User:
             time.sleep(0.1)
 
     def process_commands(self, peers: list[Union[LlmAgent, User]]):
+        """Continuously processes commands, sending them to specified peers."""
         while True:
             if self.commands:
                 new_command = self.commands.pop(0)
@@ -445,6 +569,14 @@ class User:
             time.sleep(0.1)
 
     def run(self, peers: list[Union[LlmAgent, User]]) -> None:
+        """
+        Starts the agent's message and command processing in separate threads.
+
+        Parameters
+        ----------
+        peers : list
+            List of peer agents that can interact with this agent.
+        """        
         self.process_inbox(peers),
         self.process_commands(peers)
 
