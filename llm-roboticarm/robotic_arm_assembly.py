@@ -74,8 +74,15 @@ class RoboticArmAssembly:
             'default_angles':[180,0,0]
         }
 
-        # Initial Position for detecting objects
-        self.arm.set_position(*[250,-150,445,180.0,0.0,0.0], speed=self.params['speed'], mvacc=self.params['acc'], radius=self.params['radius'], wait=self.params['wait'])
+        # Move the arm to the initial position
+        self.arm.set_position(x=250, y=-150, z=445, roll=180.0, pitch=0.0, yaw=0.0, 
+                            speed=self.params['speed'], mvacc=self.params['acc'], 
+                            radius=self.params['radius'], wait=True)
+
+        time.sleep(1)
+        # Query and confirm the arm's current position
+        current_position = self.arm.get_position()
+        print(f"Current Position: {current_position}")
 
         self.step_working_on = None
         self.voice_control = VoiceControl()
@@ -145,7 +152,7 @@ class RoboticArmAssembly:
 
         :return: pixel coordinates of the center of the qr code
         '''
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(1)
         while True:
             ret, frame = cap.read()
             decoded_objects = decode(frame)
@@ -168,7 +175,7 @@ class RoboticArmAssembly:
         path = 'llm-roboticarm/vision_data/check.pt'
         
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(1)
         temp=1
         while True and temp<10:
             ret, frame = cap.read()
@@ -224,7 +231,7 @@ class RoboticArmAssembly:
             
             model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
             print('here2')
-            cap = cv2.VideoCapture(2)
+            cap = cv2.VideoCapture(1)
             #cap = cv2.VideoCapture(0)
             temp = 0
             temp2 = 0
@@ -367,7 +374,7 @@ class RoboticArmAssembly:
         data['spring_90']
         data['cap_90']
 
-    @log_execution
+    #@log_execution
     def movement(self,bounding_box_coords,object_set,object_90,pixel_x_coord,pixel_y_coord):
         """
         :Performs the arm's movement to detected objects, gripping operation, and movement to the assembly area
@@ -423,7 +430,7 @@ class RoboticArmAssembly:
                 print('no object')
                 exit()
 
-    @log_execution
+    #@log_execution
     def perform_housing_step(self,coord_list):
         """
         Performs the housing step of the assembly process.
@@ -440,7 +447,7 @@ class RoboticArmAssembly:
             self.yhouse = int(coord_list[1] + coord_list[3])
             self.yhouse = self.yhouse /2
 
-            self.xH = self.base[0] + (self.yhouse)*-0.6+235
+            self.xH = self.base[0] + (self.yhouse)*-0.6+230
             self.yH = self.base[1] + (self.xhouse)*-0.6+215            
         except:
             message = f"Error: the housing object was not detected"
@@ -455,7 +462,7 @@ class RoboticArmAssembly:
         message = "Housing step completed successfully."
         return message          
 
-    @log_execution
+    #@log_execution
     def perform_wedge_step(self,coord_list):
         """
         Performs the wedge step of the assembly process.
@@ -473,7 +480,7 @@ class RoboticArmAssembly:
             self.ywedge = int(coord_list[1] + coord_list[3])
             self.ywedge = self.ywedge /2
 
-            self.xW = self.base[0] + (self.ywedge)*-0.6+245
+            self.xW = self.base[0] + (self.ywedge)*-0.6+239
             self.yW = self.base[1] + (self.xwedge)*-0.6+230
         except:
             message = f"Error: the wedge object was not detected"
@@ -493,7 +500,7 @@ class RoboticArmAssembly:
     
         return "Wedging step completed successfully."
     
-    @log_execution                
+    #@log_execution                
     def perform_spring_step(self,coord_list):
         try:
             self.xspring = int(coord_list[0] + coord_list[2])
@@ -515,7 +522,7 @@ class RoboticArmAssembly:
                         
         return "Spring step completed successfully."
         
-    @log_execution
+    #@log_execution
     def perform_cap_step(self,coord_list):
         try:
             self.xcap = int(coord_list[0] + coord_list[2])
@@ -524,7 +531,7 @@ class RoboticArmAssembly:
             self.ycap = int(coord_list[1] + coord_list[3])
             self.ycap = self.ycap / 2
 
-            self.xC = self.base[0] + (self.ycap)*-0.6+247
+            self.xC = self.base[0] + (self.ycap)*-0.6+225
             self.yC = self.base[1] + (self.xcap)*-0.6+230
         except:
             return f"Error: {e} during cap object placement detection"
@@ -555,7 +562,7 @@ class RoboticArmAssembly:
         path = 'llm-roboticarm/vision_data/{}.pt'.format(objectType)
 
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local')
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(1)
         #cap = cv2.VideoCapture(0)
         while True:
             ret, frame = cap.read()
@@ -595,7 +602,7 @@ class RoboticArmAssembly:
         message = self.sop_handler.retrieve(f"Assembly step working on: {step_working_on}." + VERBAL_UPDATES_INSTRUCTIONS)
         threading.Thread(target=self.voice_control.text_to_speech, args=(message, 0)).start()
 
-    @log_execution
+    #@log_execution
     def robotic_assembly(self, step_working_on: str):
         """
         Starts the robotic assembly process by performing each step sequentially.
@@ -612,7 +619,7 @@ class RoboticArmAssembly:
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local', force_reload=True)
         
         # Opens the camera
-        cap = cv2.VideoCapture(2)  # Change to 0 if you want to use the default camera
+        cap = cv2.VideoCapture(0)  # Change to 0 if you want to use the default camera
         
         object_counts = {}
         object_coords = {}
@@ -661,8 +668,8 @@ class RoboticArmAssembly:
                 break
 
             #assembly_steps = self.params_json.get("assembly_steps", [])
-            #assembly_steps = ["housing", "wedge", "spring", "cap"]
-            assembly_steps = ["wedge", "spring", "cap"]
+            assembly_steps = ["housing", "wedge", "spring", "cap"]
+            #assembly_steps = ["cap"]
             # Determine if the process should start from the beginning
             start_from_beginning = step_working_on not in assembly_steps
             if start_from_beginning:
@@ -696,15 +703,12 @@ class RoboticArmAssembly:
 
 
 if __name__ == "__main__":
-    params_file = 'llm-roboticarm/initialization/robots/specification/params.json'
+    params_file = 'llm-roboticarm/initialization/robots/specification/params2.json'
     with open(params_file, 'r') as file:
         params_information = json.load(file)
 
     assembly = RoboticArmAssembly(params_information)
-    #assembly.quality_check("wedge")
-    #assembly.start_robotic_assembly()
-    #assembly.find_available_cameras()
-    #assembly.count_and_display_objects()
     assembly.robotic_assembly(step_working_on="None")
+
 
     
