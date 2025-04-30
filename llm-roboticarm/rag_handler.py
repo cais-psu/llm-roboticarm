@@ -180,7 +180,8 @@ class RAGHandler:
             a vector database. By generating multiple perspectives on the user question, your
             goal is to help the user overcome some of the limitations of the distance-based
             similarity search. Provide these alternative questions separated by newlines.
-            Original question: {question}"""
+            Original question: {question}
+            Your response must be clear and concise. Do NOT exceed 50 words"""
         )
         return MultiQueryRetriever.from_llm(
             retriever=vector_db.as_retriever(), 

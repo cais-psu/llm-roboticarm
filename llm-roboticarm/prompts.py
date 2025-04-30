@@ -15,6 +15,10 @@ Make sure you state your name when you are messaging the other agent.
 Do not summarize the user's instructions or commands; instead, pass the full content as arguments in function calls.
 The full content provided by the user is only at the end of the sentence right after "The requester user sent this message:".
 If the message exceeds 50 words, summarize it to 50 words or fewer.
+
+If you receive a response from a function call or tool call provide_information_or_message, you must use the exact content returned.
+If the function call is `provide_information_or_message`, you must use only the latest user message and ignore the previous history.
+Do not rephrase or summarize the response from function calls or tool calls.
 """
 
 VERBAL_UPDATES_INSTRUCTIONS = """\

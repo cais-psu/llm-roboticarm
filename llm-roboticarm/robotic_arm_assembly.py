@@ -42,7 +42,7 @@ class RoboticArmAssembly:
 
         self.arm = XArmAPI('192.168.1.240', baud_checkset=False)
         self.variables = {}
-        self.a,self.base=self.arm.get_position()
+        self.a, self.base=self.arm.get_position()
 
         self.adaptation = False
         
@@ -51,7 +51,7 @@ class RoboticArmAssembly:
             'radius':-1,
             'auto_enable':True,
             'wait':True,
-            'speed': 280,
+            'speed': 250,
             'acc': 10000,
             'angle_speed': 20,
             'angle_acc': 500,
@@ -251,7 +251,7 @@ class RoboticArmAssembly:
         """
         path = 'llm-roboticarm/vision_data/combined.pt'
         model = torch.hub.load('llm-roboticarm/ultralytics_yolov5_master', 'custom', path, source='local', force_reload=True)
-        capture = cv2.VideoCapture(0)
+        capture = cv2.VideoCapture(4)
         return model, capture
 
     def _process_and_display_frame(self, frame, model, object_counts, object_coords):
@@ -319,8 +319,8 @@ class RoboticArmAssembly:
         # Mapping of step type to movement sets and offsets
         step_data = {
             "housing": {"set": self.housing_set, "set_90": self.housing_90, "x_offset": 215, "y_offset": 215},
-            "wedge": {"set": self.wedge_set, "set_90": self.wedge_90, "x_offset": 235.5, "y_offset": 230},
-            "spring": {"set": self.spring_set, "set_90": self.spring_90, "x_offset": 235, "y_offset": 230},
+            "wedge": {"set": self.wedge_set, "set_90": self.wedge_90, "x_offset": 233, "y_offset": 220},
+            "spring": {"set": self.spring_set, "set_90": self.spring_90, "x_offset": 235, "y_offset": 220},
             "cap": {"set": self.cap_set, "set_90": self.cap_90, "x_offset": 240, "y_offset": 230},
         }
 
@@ -422,7 +422,8 @@ class RoboticArmAssembly:
         self._process_and_display_frame(frame, model, object_counts, object_coords)
 
         # Retrieve assembly steps based on adaptation mode
-        assembly_steps = self.params_general.get("assembly_steps", []) if self.adaptation else ['housing', "wedge","spring"]
+        assembly_steps = self.params_general.get("assembly_steps", []) if self.adaptation else ['housing', "wedge", "spring"]
+        #assembly_steps = self.params_general.get("assembly_steps", []) if self.adaptation else ['spring']
 
         # Execute the assembly steps based on detected objects
         result, message = self._execute_assembly_steps(assembly_steps, step_working_on, object_coords, capture)

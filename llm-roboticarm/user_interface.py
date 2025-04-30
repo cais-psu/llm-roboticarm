@@ -8,15 +8,20 @@ class UserInterface:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("xArm User Interface")
-        self.root.geometry("500x400")  # Adjusted the window size to accommodate the message log and buttons
+        self.root.geometry("1000x800")  # Adjusted the window size to accommodate the message log and buttons
 
-        # Message log
-        self.message_log = scrolledtext.ScrolledText(self.root, height=22, width=50, state='disabled', bg='white')
-        self.message_log.pack(padx=10, pady=10)
-        
+        # Set font style
+        font_style = ("Arial", 30)  # Adjust font size
+
+        # Message log with increased size and font
+        self.message_log = scrolledtext.ScrolledText(
+            self.root, height=22, width=70, state='disabled', bg='white', font=font_style
+        )
+        self.message_log.pack(padx=15, pady=15, fill=tk.BOTH, expand=True)
+
         # Initialize with a message
         self.log_message("System", "Say 'hello' to initiate the command.")
-        
+
         self.uploaded_file_path = None  # Store the path of the uploaded file
 
     def log_message(self, sender, message):

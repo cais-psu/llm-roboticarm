@@ -45,7 +45,83 @@ class VoiceControl:
                 return i
         raise ValueError(f"Target device '{self.target_device_name}' not found.")
 
-    def monitor_microphone_activity(self, start_callback, stop_callback, threshold=500, sound_start_threshold=3, silence_start_threshold=5):
+    def monitor_microphone_activity(self, start_callback, stop_callback, threshold=1000, sound_start_threshold=3, silence_start_threshold=5, stop_delay=3.0):
+        """
+        Monitors the microphone input for activity and triggers callbacks.
+
+        Parameters:
+        start_callback (function): Function to call when sound is detected.
+        stop_callback (function): Function to call when no significant sound is detected.
+        threshold (int): Minimum audio signal amplitude to consider as "sound detected".
+        sound_start_threshold (int): Frames required to confirm sound start.
+        silence_start_threshold (int): Frames required to confirm silence start.
+        stop_delay (float): Additional delay (in seconds) to confirm silence before stopping recording.
+        """
+        stream = self.audio_interface.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=44100,
+            input=True,
+            input_device_index=self.device_index,
+            frames_per_buffer=self.chunk_size,
+        )
+        print("Monitoring microphone for activity...")
+
+        sound_counter = 0
+        silence_counter = 0
+        silence_detected_time = None  # Time when silence was first detected
+
+        try:
+            while True:
+                data = np.frombuffer(stream.read(self.chunk_size, exception_on_overflow=False), dtype=np.int16)
+
+                # Compute RMS for better accuracy
+                # amplitude = np.sqrt(np.mean(np.square(data)))
+                amplitude = np.abs(data).mean()  # Calculate average amplitude
+
+                #print(f"Amplitude: {amplitude}")  # Debugging - Show real-time amplitude
+
+                if amplitude > threshold:
+                    sound_counter += 1
+                    silence_counter = 0
+                    silence_detected_time = None  # Reset silence timer
+                else:
+                    if silence_counter == 0:
+                        silence_detected_time = time.time()  # Mark when silence starts
+                    silence_counter += 1
+                    sound_counter = 0
+
+                # Start recording if enough sound frames are detected
+                if sound_counter >= sound_start_threshold and not self.recording:
+                    print("Voice detected - Starting Recording")
+                    start_callback()
+                    sound_counter = 0  # Reset counter after starting recording
+
+                # Delay stopping to confirm silence
+                elif silence_counter >= silence_start_threshold and self.recording:
+                    if silence_detected_time and (time.time() - silence_detected_time) >= stop_delay:
+                        print("Silence detected for long enough - Confirming stop...")
+                        
+                        # Re-check audio to confirm silence before stopping
+                        confirm_data = np.frombuffer(stream.read(self.chunk_size, exception_on_overflow=False), dtype=np.int16)
+                        confirm_amplitude = np.sqrt(np.mean(np.square(confirm_data)))
+
+                        if confirm_amplitude < (threshold * 0.5):  # Extra confirmation of silence
+                            print("Confirmed silence - Stopping recording")
+                            stop_callback()
+                            silence_counter = 0  # Reset counter after stopping recording
+                            silence_detected_time = None  # Reset timer
+                        else:
+                            print("False alarm - Resuming monitoring")
+
+        except KeyboardInterrupt:
+            print("Stopping microphone monitoring.")
+        finally:
+            stream.stop_stream()
+            stream.close()
+
+    '''
+    def monitor_microphone_activity(self, start_callback, stop_callback, threshold=1000, sound_start_threshold=3, silence_start_threshold=5):
         """
         Monitors the microphone input for activity and triggers callbacks.
 
@@ -72,6 +148,10 @@ class VoiceControl:
         try:
             while True:
                 data = np.frombuffer(stream.read(self.chunk_size), dtype=np.int16)
+
+                # Compute RMS for better accuracy
+                #amplitude = np.sqrt(np.mean(np.square(data)))
+
                 amplitude = np.abs(data).mean()  # Calculate average amplitude
 
                 if amplitude > threshold:
@@ -92,6 +172,7 @@ class VoiceControl:
         finally:
             stream.stop_stream()
             stream.close()
+    '''
 
     def transcribe(self, audio_file_path):
         """
@@ -115,7 +196,8 @@ class VoiceControl:
                 transcript = openai.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    response_format="text"
+                    response_format="text",
+                    temperature=0
                 )
                 return transcript
         except ValueError as ve:
