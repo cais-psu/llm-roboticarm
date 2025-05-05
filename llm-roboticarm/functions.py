@@ -12,17 +12,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'xArm-Python-SDK-master'
 import general_utils
 from function_analyzer import FunctionAnalyzer
 from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS, LOG_RETRIEVAL_INSTRUCTIONS
-import robotic_arm_assembly
+import robot_tasks
 from datetime import datetime
 
 class RoboticArmFunctions:
-    def __init__(self, sop_file, params_general, params_movement):
+    def __init__(self, sop_file, robot_config):
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
         self.llm = ChatOpenAI(model="gpt-4o")
         self.sop_handler = RAGHandler(sop_file, 'pdf', self.openai_api_key)
         self.sop_information = None
-        self.params_general = params_general
-        self.params_movement = params_movement
+        self.robot_config = robot_config
         self.log_file_path = 'llm-roboticarm/log/xArm_actions.log'
         
     def _generated_params(self, task_description) -> str:

@@ -74,6 +74,8 @@ chromadb = "^0.5.3"
 langchain-community = "^0.2.7"
 pdfplumber = "^0.11.2"
 tk = "^0.1.0"
+math3d = "^4.0.0"
+urx = "0.11.0"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"

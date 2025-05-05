@@ -12,6 +12,7 @@ from collections import OrderedDict, namedtuple
 from copy import copy
 from pathlib import Path
 from urllib.parse import urlparse
+from contextlib import nullcontext
 
 import cv2
 import numpy as np
@@ -736,7 +737,7 @@ class AutoShape(nn.Module):
             x = np.ascontiguousarray(np.array(x).transpose((0, 3, 1, 2)))  # stack and BHWC to BCHW
             x = torch.from_numpy(x).to(p.device).type_as(p) / 255  # uint8 to fp16/32
 
-        with amp.autocast(autocast):
+        with torch.amp.autocast("cuda") if autocast else nullcontext():
             # Inference
             with dt[1]:
                 y = self.model(x, augment=augment)  # forward

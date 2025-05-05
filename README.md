@@ -56,6 +56,39 @@ A setup leveraging LLMs for robotic arm assembly.
 8. **Robot Movement Configuration**:
    - `params_movement.json` holds xArm movement coordinates. Update this file to adjust to specific xArm setups or calibrate based on the model in use for optimal alignment.
 
+9. **Using urx library for UR5e robot arm**
+   - urx=0.11.0 version
+   - in robot.py, below change needs to be made:
+       def getl(self, wait=False, _log=True):
+        """
+        return current transformation from tcp to current csys
+        """
+        t = self.get_pose(wait, _log)
+        return t.pose_vector.get_array().tolist()
+   - in rurobot.py, below change is required:
+       def movex(self, command, tpose, acc=0.01, vel=0.01, wait=True, relative=False, threshold=None):
+        """
+        Send a move command to the robot. Since UR robots have several methods, this sends
+        whatever is defined in 'command' string (e.g., "movel", "movep").
+        """
+        # Convert PoseVector to array if needed
+        if hasattr(tpose, "array"):
+            tpose = tpose.array
+
+        # Handle relative motion
+        if relative:
+            l = self.getl()
+            tpose = [v + l[i] for i, v in enumerate(tpose)]
+
+        # Format and send the URScript command
+        prog = self._format_move(command, tpose, acc, vel, prefix="p")
+        self.send_program(prog)
+
+        # Optionally wait until the motion is complete
+        if wait:
+            self._wait_for_move(tpose[:6], threshold=threshold)
+            return self.getl()
+
 ---
 
 ## Developer Notes

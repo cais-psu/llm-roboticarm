@@ -4,7 +4,7 @@ import sys
 import json
 import cv2
 import torch
-
+import ultralytics
 from rag_handler import RAGHandler
 from prompts import VERBAL_UPDATES_INSTRUCTIONS
 

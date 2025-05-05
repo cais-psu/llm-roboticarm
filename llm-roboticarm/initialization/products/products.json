@@ -1,0 +1,10 @@
+{
+    "assembly_sequence": ["housing", "wedge", "spring", "cap"],
+    "dropoff_positions": {
+      "housing": [-313.53, -337.41, 52.00], 
+      "wedge": [-454.70, -161.70, 66.00],
+      "spring": [-458.67, -162.44, 68.00],
+      "cap": [-294.35, -175.98, 215.00]
+    }
+  }
+  

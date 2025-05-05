@@ -1,13 +1,18 @@
 import threading
 import os
+import json
+
 from agent_management_system import AgentManagementSystem
 import general_utils
 import agent_creator
 import functions
+
 from voice_control import VoiceControl
 from user_interface import UserInterface
-from robotic_arm_assembly import RoboticArmAssembly
-import json
+
+from robot_controller import RobotController
+from camera_manager import CameraManager
+from robot_tasks import RobotTask
 
 def run_voice_control(voice_control, user, roboticarm_agents):
     """
@@ -29,30 +34,33 @@ if __name__ == "__main__":
     # Initialize the VoiceControl class for CMTECK microphone
     voice_control = VoiceControl(target_device_name="CMTECK")
 
-    # Define the file paths for the JSON files
-    robot_file_path = 'llm-roboticarm/initialization/robots/'
+    # Define the file paths
+    initialization_file_path = 'llm-roboticarm/initialization/'
+    specification_file_path = 'llm-roboticarm/specification/'
+
     # Init Files
+    robot_file_path = initialization_file_path + 'robots'
     robot_init_list = general_utils.get_init_files(robot_file_path)
+    with open(initialization_file_path + "resources/robots/robots.json") as f:
+        robot_config = json.load(f)["ur5e"]
+    with open(initialization_file_path + "resources/sensors/camera.json") as f:
+        camera_config = json.load(f)
+    with open(initialization_file_path + "products/products.json") as f:
+        product_config = json.load(f)
 
-    # Specify paths for robot specification and parameter files
-    robot_spec_file = os.path.join(robot_file_path, 'specification/xArm_SOP.pdf')
-    params_general_path = os.path.join(robot_file_path, 'specification/params_general.json')
-    params_movement_path = os.path.join(robot_file_path, 'specification/params_movement.json')
-    
-    with open(params_general_path, 'r') as file:
-        params_general = json.load(file)
+    # Spec File
+    robot_spec_file = os.path.join(initialization_file_path, 'robots/specification/SOP.pdf')
 
-    with open(params_movement_path, 'r') as file:
-        params_movement = json.load(file)
-
-    # Initialize the RoboticArmAssembly with both parameters
-    assembly = RoboticArmAssembly(params_general, params_movement)
+    # Hardware Initiation
+    robot_controller = RobotController(robot_config)
+    camera_manager = CameraManager(camera_config)
+    robot_task = RobotTask(robot_controller, camera_manager, robot_config, product_config)
 
     # User Creation
     user = agent_creator.create_user()
 
     # Initialize robotic arm functions using specification and general parameters
-    roboticarm_functions = functions.RoboticArmFunctions(robot_spec_file, params_general, params_movement)
+    roboticarm_functions = functions.RoboticArmFunctions(robot_spec_file, robot_config)
     roboticarm_agents = agent_creator.create_robot_agents(robot_init_list, roboticarm_functions)
     agents_list = [user] + roboticarm_agents
 

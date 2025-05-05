@@ -1,7 +1,0 @@
-{
-  "xArm": {
-      "annotation": "This agent handles tasks related to humant-robot collaborative assembly operations.",
-      "instructions": "You are a robot that handles tasks related to human-robot collaborative assembly operations.",
-      "functions": ["provide_status", "perform_tasks", "provide_information_or_message"]
-  }
-}
