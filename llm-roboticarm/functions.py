@@ -16,13 +16,14 @@ import robot_tasks
 from datetime import datetime
 
 class RoboticArmFunctions:
-    def __init__(self, sop_file, robot_config):
+    def __init__(self, sop_file, robot_config, robot_task):
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
         self.llm = ChatOpenAI(model="gpt-4o")
         self.sop_handler = RAGHandler(sop_file, 'pdf', self.openai_api_key)
         self.sop_information = None
         self.robot_config = robot_config
-        self.log_file_path = 'llm-roboticarm/log/xArm_actions.log'
+        self.robot_task = robot_task
+        #self.log_file_path = 'llm-roboticarm/log/ur5e_actions.log'
         
     def _generated_params(self, task_description) -> str:
         """
@@ -47,8 +48,8 @@ class RoboticArmFunctions:
         SOP Information:
         {self.sop_information}
 
-        Specific Parameters or Configurations for Assembly in JSON:
-        {self.params_general}
+        Robot Parameters or Configurations for Assembly in JSON:
+        {self.robot_config}
 
         Output Format:
         Generated Parameter File in JSON:

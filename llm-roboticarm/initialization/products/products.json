@@ -1,5 +1,6 @@
 {
-    "assembly_sequence": ["housing", "wedge", "spring", "cap"],
+    "assembly_steps": ["housing", "wedge", "spring", "cap"],
+    "assembly_functions": ["assembly"],
     "dropoff_positions": {
       "housing": [-313.53, -337.41, 52.00], 
       "wedge": [-454.70, -161.70, 66.00],

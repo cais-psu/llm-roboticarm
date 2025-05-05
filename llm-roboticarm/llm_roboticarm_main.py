@@ -60,7 +60,7 @@ if __name__ == "__main__":
     user = agent_creator.create_user()
 
     # Initialize robotic arm functions using specification and general parameters
-    roboticarm_functions = functions.RoboticArmFunctions(robot_spec_file, robot_config)
+    roboticarm_functions = functions.RoboticArmFunctions(robot_spec_file, robot_config, robot_task)
     roboticarm_agents = agent_creator.create_robot_agents(robot_init_list, roboticarm_functions)
     agents_list = [user] + roboticarm_agents
 

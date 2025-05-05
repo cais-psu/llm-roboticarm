@@ -13,7 +13,7 @@ class RobotTask:
         self.robot_config = robot_config
         self.product_config = product_config
 
-        self.assembly_sequence = self.product_config["assembly_sequence"]
+        self.assembly_steps = self.product_config["assembly_steps"]
         self.dropoff_positions = self.product_config["dropoff_positions"]
 
         self.camera_name = self.robot_config["camera_types"][0]
@@ -112,22 +112,25 @@ class RobotTask:
             print(f"[TASKS] '{component}' not detected. Waiting...")
             time.sleep(0.5)
 
-    def run_assembly_continuous(self):
+    def assembly_continuous(self):
         def task_loop():
             while True:
-                for component in self.assembly_sequence:
+                for component in self.assembly_steps:
                     self._perform_task(component)
         threading.Thread(target=task_loop, daemon=True).start()
         while True:
             self.camera_manager.process_all_cameras()
             time.sleep(0.05)
 
-    def run_assembly(self):
-        for component in self.assembly_sequence:
+    def assembly(self):
+        for component in self.assembly_steps:
             success = self._perform_task(component)
             if not success:
                 print(f"[TASKS] Failed to complete task for '{component}'")
 
+    def refresh_config(self):
+        pass
+    
 if __name__ == "__main__":
     with open("llm-roboticarm/initialization/resources/robots/robots.json") as f:
         robot_config = json.load(f)["ur5e"]
@@ -139,6 +142,6 @@ if __name__ == "__main__":
     robot_controller = RobotController(robot_config)
     camera_manager = CameraManager(camera_config)
     robot_task = RobotTask(robot_controller, camera_manager, robot_config, product_config)
-    robot_task.run_assembly()
+    robot_task.assembly()
 
-    #task.run_assembly_continuous()
+    #robot_task.assembly_continuous()
