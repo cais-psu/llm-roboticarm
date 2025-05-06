@@ -10,7 +10,7 @@ import wave
 from pvrecorder import PvRecorder
 import numpy as np
 
-class VoiceControl:
+class UserInputControl:
     """
     A class to handle voice control functionalities, including sound detection,
     recording audio, transcribing speech to text, and playing text-to-speech output.
@@ -18,7 +18,7 @@ class VoiceControl:
 
     def __init__(self, target_device_name="CMTECK"):
         """
-        Initializes the VoiceControl class with sound detection and audio recording setup.
+        Initializes the User Input Control class with sound detection and audio recording setup.
         """
         self.target_device_name = target_device_name
         self.audio_interface = pyaudio.PyAudio()
@@ -119,60 +119,6 @@ class VoiceControl:
         finally:
             stream.stop_stream()
             stream.close()
-
-    '''
-    def monitor_microphone_activity(self, start_callback, stop_callback, threshold=1000, sound_start_threshold=3, silence_start_threshold=5):
-        """
-        Monitors the microphone input for activity and triggers callbacks.
-
-        Parameters:
-        start_callback (function): Function to call when sound is detected.
-        stop_callback (function): Function to call when no significant sound is detected.
-        threshold (int): Minimum audio signal amplitude to consider as "sound detected".
-        sound_start_threshold (int): Frames required to confirm sound start.
-        silence_start_threshold (int): Frames required to confirm silence start.
-        """
-        stream = self.audio_interface.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=44100,
-            input=True,
-            input_device_index=self.device_index,
-            frames_per_buffer=self.chunk_size,
-        )
-        print("Monitoring microphone for activity...")
-
-        sound_counter = 0
-        silence_counter = 0
-
-        try:
-            while True:
-                data = np.frombuffer(stream.read(self.chunk_size), dtype=np.int16)
-
-                # Compute RMS for better accuracy
-                #amplitude = np.sqrt(np.mean(np.square(data)))
-
-                amplitude = np.abs(data).mean()  # Calculate average amplitude
-
-                if amplitude > threshold:
-                    sound_counter += 1
-                    silence_counter = 0
-                else:
-                    silence_counter += 1
-                    sound_counter = 0
-
-                if sound_counter >= sound_start_threshold and not self.recording:
-                    start_callback()
-                    sound_counter = 0  # Reset counter after starting recording
-                elif silence_counter >= silence_start_threshold and self.recording:
-                    stop_callback()
-                    silence_counter = 0  # Reset counter after stopping recording
-        except KeyboardInterrupt:
-            print("Stopping microphone monitoring.")
-        finally:
-            stream.stop_stream()
-            stream.close()
-    '''
 
     def transcribe(self, audio_file_path):
         """
@@ -332,7 +278,6 @@ class VoiceControl:
             print("Recording is not active.")
             return False
 
-        
     def save_recording(self):
         """
         Saves the recorded audio to a WAV file.
@@ -401,3 +346,18 @@ class VoiceControl:
             self.transcribe_and_append_command('voice_command.wav', user, log_message, roboticarm_agents)
         else:
             log_message("System", "Recording is not active.")
+
+    def process_text_command(self, text_command, user, log_message, roboticarm_agents):
+        """
+        Handles user text input, logs it, and sends it to the robotic agents.
+
+        Parameters:
+        text_command (str): The command entered by the user.
+        user: The user object to track commands.
+        log_message (function): A function to update the GUI.
+        roboticarm_agents (list): List of robotic arms to send the command to.
+        """
+        log_message("User", text_command)
+        user.commands.append(text_command)
+        for agent in roboticarm_agents:
+            agent.message("user", text_command)

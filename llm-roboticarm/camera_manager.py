@@ -18,6 +18,7 @@ class CameraManager:
         self.object_counts_dict = {}
         self.object_coords_dict = {}
         self.object_bboxes_dict = {}
+        self.camera_config = config_path
 
         for name, cfg in self.camera_config.items():
             index = cfg["camera_index"]

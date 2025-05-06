@@ -16,13 +16,14 @@ import robot_tasks
 from datetime import datetime
 
 class RoboticArmFunctions:
-    def __init__(self, sop_file, robot_config, robot_task):
+    def __init__(self, sop_file, robot_config, product_config, robot_assembly):
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
         self.llm = ChatOpenAI(model="gpt-4o")
         self.sop_handler = RAGHandler(sop_file, 'pdf', self.openai_api_key)
         self.sop_information = None
         self.robot_config = robot_config
-        self.robot_task = robot_task
+        self.product_config = product_config
+        self.robot_assembly = robot_assembly
         #self.log_file_path = 'llm-roboticarm/log/ur5e_actions.log'
         
     def _generated_params(self, task_description) -> str:
@@ -48,8 +49,8 @@ class RoboticArmFunctions:
         SOP Information:
         {self.sop_information}
 
-        Robot Parameters or Configurations for Assembly in JSON:
-        {self.robot_config}
+        Assembly Sequences and Configurations in JSON:
+        {self.product_config}
 
         Output Format:
         Generated Parameter File in JSON:
@@ -80,21 +81,20 @@ class RoboticArmFunctions:
         print(self.sop_information)
 
         # Step 2: Generate parameters
-        generated_params_general = self._generated_params(f"Generate the parameters using the SOP and parameter information:\n{task_description}")
-        print(generated_params_general)
+        generated_product_config = self._generated_params(f"Generate the parameters using the SOP and parameter information:\n{task_description}")
+        print(generated_product_config)
 
         # Step 3: Execute the generated code
         # Parse the response to check sufficiency and either generate task or ask for more information
         try:
-            self.new_params_general = self._process_params(generated_params_general)
+            self.new_product_config = self._process_params(generated_product_config)
 
             ########### list of robot functions for internal function call in perform_assembly_task function ###########
-            self.assembly = robotic_arm_assembly.RoboticArmAssembly(self.new_params_general, self.params_movement)
-            self.assembly_functions = self.params_general.get("assembly_functions", [])
+            self.assembly_functions = self.robot_config.get("assembly_functions", [])
 
             self.assembly_functions_ = []
             for assembly_function_name in self.assembly_functions:
-                assembly_function_ref = getattr(self.assembly, assembly_function_name)
+                assembly_function_ref = getattr(self.robot_assembly, assembly_function_name)
                 self.assembly_functions_.append(assembly_function_ref)  
                 
             # Append the function reference
@@ -111,7 +111,7 @@ class RoboticArmFunctions:
             {self.sop_information}
 
             New Parameter Information for Assembly:
-            {self.new_params_general}
+            {self.new_product_config}
 
             step_working_on:
             {step_working_on}
@@ -134,6 +134,7 @@ class RoboticArmFunctions:
             print(f"Function call: {func}; Arguments: {args}")
 
             # execute assembly functions
+            self.robot_assembly.refresh_config(self.new_product_config)
             step_working_on, message = self.assembly_executables[func](**args)
 
         except Exception as e:

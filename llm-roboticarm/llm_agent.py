@@ -22,7 +22,7 @@ import time
 
 from function_analyzer import FunctionAnalyzer
 from prompts import PROMPT_ROBOT_AGENT, BASE_INSTRUCTIONS
-from voice_control import VoiceControl
+from user_input_control import UserInputControl
 from user_interface import UserInterface
 
 # load the OpenAI API key
@@ -485,7 +485,7 @@ class User:
         self.commands = []
         self.command_states = {}
 
-        self.voice_control = VoiceControl()  # Assuming VoiceControl is initialized without arguments
+        self.user_input_control = UserInputControl()  # Assuming User Input Control is initialized without arguments
 
         # Set up agent-specific logger
         self.log_setup = log_setup.LogSetup(name="User")
@@ -513,7 +513,7 @@ class User:
 
     def _speak_and_log(self, message: str, sender: str):
         """
-        Outputs a message through voice control and logs it to the UI.
+        Outputs a message through user input control and logs it to the UI.
 
         Parameters
         ----------
@@ -523,7 +523,7 @@ class User:
             The sender's name for logging purposes.
         """        
         threads = [
-            threading.Thread(target=self.voice_control.text_to_speech, args=(message,)),
+            threading.Thread(target=self.user_input_control.text_to_speech, args=(message,)),
             threading.Thread(target=UserInterface.log_message_to_ui, args=(sender, message))
         ]
         for thread in threads:
