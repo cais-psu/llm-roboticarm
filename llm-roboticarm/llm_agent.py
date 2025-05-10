@@ -84,7 +84,8 @@ class LlmAgent:
         self.task_states = {}
         self.tasks = []        
         
-        self.msg_history_as_text = ""
+        self.msg_history_buffer = []  # list of (sender, message)
+        self.max_context_messages = 20  # you can tune this (e.g., 10–50 depending on verbosity)
         
         if functions_:
             self.function_info = [self.function_analyzer.analyze_function(f) for f in functions_]
@@ -163,26 +164,25 @@ class LlmAgent:
 
     def _msg_history_to_prompt(self, msg_history: list[tuple[str, str]]) -> str:
         """
-        Converts message history into a prompt for the language model.
-
-        Parameters
-        ----------
-        msg_history : list[tuple[str, str]]
-            List of messages in (sender, content) format.
-
-        Returns
-        -------
-        str
-            Prompt formatted as message history.
+        Converts limited message history into a formatted prompt.
+        If the total exceeds the context window, remove oldest messages.
         """
-        self.logger_agent.info(f"{msg_history=}")
-        messages = "\n".join([" The requester is " + m[0] + ". The requester " + m[0] + " sent this message: " + m[1] for m in msg_history])
-        msg_history_as_text = (
-            #"This is a conversation history between human and robot:\n"
-            f"{messages}\n"
-            #f"Act as the agent {self.name} and return an appropriate response.\n"
-        )
-        return msg_history_as_text
+        # Add to internal history buffer
+        for msg in msg_history:
+            if msg not in self.msg_history_buffer:
+                self.msg_history_buffer.append(msg)
+
+        # Truncate if necessary
+        if len(self.msg_history_buffer) > self.max_context_messages:
+            self.msg_history_buffer = self.msg_history_buffer[-self.max_context_messages:]
+
+        # Reformat to text
+        messages = "\n".join([
+            f"The requester is {sender}. The requester {sender} sent this message: {content}"
+            for sender, content in self.msg_history_buffer
+        ])
+
+        return f"{messages}\n"
     
     def __get_function_call_response(
         self,
@@ -360,79 +360,110 @@ class LlmAgent:
     def chat_after_function_execution(self, func_res: dict, msgs: list, model: str = None, temperature: float = 0.0) -> None:
         func_name = func_res.get('func_name')
 
-        # Check if the function is 'provide_status' or 'provide_information_or_message'
-        if func_name in ['provide_status', 'provide_information_or_message']:
+        # Prepare model selection
+        with_functions = len(self.function_info) > 0
+        model_ = model or (self.model if with_functions else None)
 
-            # Prepare the function message
+        # If RAG or status-related function, flag it and allow reasoning on it
+        if func_name == 'provide_information_or_message':
+            # Prepare the function message from RAG
             func_msg = {
                 "role": "function",
                 "name": self.name,
-                "content": func_res['content'],
+                "content": f"This information was retrieved from RAG: {func_res['content']}",
             }
             msgs.append(func_msg)
             self.logger_agent.info(f"Msgs: {msgs}")
 
-            # Get response from LLM again
-            response = self.__get_direct_response(
-                msgs=msgs, temperature=temperature
-            )
+            # Direct response from LLM (no function schema attached)
+            response = self.__get_direct_response(msgs=msgs, temperature=temperature)
             self.logger_agent.info(response)
-            msgs.append(response.choices[0].message)
+            response_message = response.choices[0].message
+            msgs.append(response_message)
 
-            args = {'sender': self.name, 'message': response.choices[0].message.content}
+            # Safely handle both function and plain message return
+            if response_message.function_call:
+                try:
+                    func = response_message.function_call.name
+                    args = json.loads(response_message.function_call.arguments)
+                    self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
+                    func_res = self.message_executables[func](**args)
+                    self.logger_agent.info(f"Function returned `{func_res}`.")
+                except Exception as e:
+                    self.logger_agent.error(f"Error executing follow-up function: {e}")
+            else:
+                # Fallback plain message to user
+                args = {'sender': self.name, 'message': response_message.content}
+                user_messaging_function = self.message_executables.get('user')
+                if user_messaging_function:
+                    user_messaging_function(**args)
+                else:
+                    self.logger_agent.error("User messaging function not found.")
+            return
+        
+        elif func_name in ['provide_status', 'perceive_environment']:
+            # Directly send the summarized status to the user without calling the LLM again
+            func_msg = {
+                "role": "function",
+                "name": self.name,
+                "content": func_res['content'],  # Already the status message from message history
+            }
+            msgs.append(func_msg)
+            self.logger_agent.info(f"Msgs: {msgs}")
 
-            # Send the message to the user
+            args = {'sender': self.name, 'message': func_res['content']}
             user_messaging_function = self.message_executables.get('user')
             if user_messaging_function:
                 user_messaging_function(**args)
             else:
                 self.logger_agent.error("User messaging function not found.")
-        else:
-            # Proceed with the existing logic for other functions
-            with_functions = len(self.function_info) > 0
-            model_ = model or (self.model if with_functions else None)
+            return
 
-            # Prepare the function message
-            func_msg = {
-                "role": "function",
-                "name": self.name,
-                "content": func_res['content'],
-            }
-            msgs.append(func_msg)
-            self.logger_agent.info(f"Msgs: {msgs}")
+        # ==== For all other function types ====
+        func_msg = {
+            "role": "function",
+            "name": self.name,
+            "content": func_res['content'],
+        }
+        msgs.append(func_msg)
+        self.logger_agent.info(f"Msgs: {msgs}")
 
-            # Update message history
-            self.msg_history_as_text += self._msg_history_to_prompt([(func_msg['name'], func_msg['content'])])
+        # Update internal message history for tracking
+        self._msg_history_to_prompt([(func_msg['name'], func_msg['content'])])
 
-            # Get response from LLM again
-            response = self.__get_message_response(
-                msgs=msgs, model=model_, with_functions=True, temperature=temperature
-            )
-            self.logger_agent.info(response)
-            msgs.append(response.choices[0].message)
+        # Call model with message functions available
+        response = self.__get_message_response(
+            msgs=msgs, model=model_, with_functions=True, temperature=temperature
+        )
+        self.logger_agent.info(response)
+        response_message = response.choices[0].message
+        msgs.append(response_message)
 
-            try:
-                if response.choices[0].finish_reason == "stop":
-                    func = response.choices[0].message.function_call.name
-                    args = json.loads(response.choices[0].message.function_call.arguments)
-                    self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
-                else:
-                    func = response.choices[0].message.function_call.name
-                    args = json.loads(response.choices[0].message.function_call.arguments)
-                    self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
-
-                # Execute python 'message' functions
+        try:
+            if response_message.function_call:
+                func = response_message.function_call.name
+                args = json.loads(response_message.function_call.arguments)
+                self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
                 func_res = self.message_executables[func](**args)
                 self.logger_agent.info(f"Function returned `{func_res}`.")
+            else:
+                # Plain response (no tool used)
+                self.logger_agent.info("No function call in response; regular message received.")
+                args = {'sender': self.name, 'message': response_message.content}
+                user_messaging_function = self.message_executables.get('user')
+                if user_messaging_function:
+                    user_messaging_function(**args)
+                else:
+                    self.logger_agent.error("User messaging function not found.")
 
-            except KeyError:
-                if response.choices[0].finish_reason == "stop":
-                    if 'completed' in response.choices[0].message.content:
-                        self.tasks.clear()
-                    else:
-                        self.logger_agent.info("No further function call to execute")
-            except Exception as e:
-                self.logger_agent.error(f"An error occurred during function execution: {e}")
+        except KeyError:
+            if response.choices[0].finish_reason == "stop":
+                if 'completed' in response_message.content:
+                    self.tasks.clear()
+                else:
+                    self.logger_agent.info("No further function call to execute")
+        except Exception as e:
+            self.logger_agent.error(f"An error occurred during function execution: {e}")
 
     def process_inbox(self):
         """
@@ -444,8 +475,8 @@ class LlmAgent:
                 self.logger_agent.info(f"Running agent: {self.name}")
                 self.task_states[inbox_identifier] = 'running'
 
-                self.msg_history_as_text += self._msg_history_to_prompt([(sender, content)])
-                func_res, msgs = self.chat(self.msg_history_as_text)
+                prompt = self._msg_history_to_prompt([(sender, content)])
+                func_res, msgs = self.chat(prompt)
 
                 # If 'func_type' exists, this means that it is not just simple message but function call
                 if 'func_type' in func_res:

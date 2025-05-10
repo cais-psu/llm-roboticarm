@@ -17,6 +17,8 @@ class RobotTask:
         self.robot_config = robot_config
         self.product_config = product_config
 
+        self.adaptation = True
+
         self.assembly_steps = self.product_config["assembly_steps"]
         self.dropoff_positions = self.product_config["dropoff_positions"]
 
@@ -40,7 +42,7 @@ class RobotTask:
             raise ValueError("Insufficient calibration data.")
 
         self.openai_api_key=os.getenv("OPENAI_API_KEY")
-        self.sop_handler = RAGHandler('llm-roboticarm/specification/SOP.pdf', 'pdf', self.openai_api_key)
+        #self.sop_handler = RAGHandler('llm-roboticarm/specification/SOP.pdf', 'pdf', self.openai_api_key)
         # Load the parameters from JSON if provided as a string
         self.step_working_on = None
         self.user_input_control = UserInputControl()
@@ -62,6 +64,8 @@ class RobotTask:
             return int((x1 + x2) / 2), y1
         elif strategy == "above-top":
             return int((x1 + x2) / 2), y1 - 5
+        elif strategy == "below-top":
+            return int((x1 + x2) / 2), y1 + 5
         else:
             return int((x1 + x2) / 2), int((y1 + y2) / 2)
 
@@ -114,38 +118,39 @@ class RobotTask:
         step_working_on : str
             Name of the current assembly step.
         """
-        message = self.sop_handler.retrieve(f"Assembly step working on: {step_working_on}." + VERBAL_UPDATES_INSTRUCTIONS)
-        threading.Thread(target=self.user_input_control.text_to_speech, args=(message, 0)).start()
+        #message = self.sop_handler.retrieve(f"Assembly step working on: {step_working_on}." + VERBAL_UPDATES_INSTRUCTIONS)
+        #threading.Thread(target=self.user_input_control.text_to_speech, args=(message, 0)).start()
 
     def _perform_task(self, component: str):
-        """
-        Attempts to perform the assembly of a single component.
-
-        :param component: A string representing the name of the component (e.g., 'housing').
-        :return: Tuple (status, message)
-            - status: 'completed' or 'error'
-            - message: Description of the result
-        """
         print(f"[TASKS] Attempting to detect '{component}' for assembly...")
 
-        key, cx, cy = self.detect_object(component)
+        # Ensure camera starts processing even if called after failure
+        retry_count = 0
+        max_retries = 5
+        while retry_count < max_retries:
+            self.camera_manager.process_all_cameras()  # Always keep this active
 
-        if key and cx is not None:
-            print(f"[TASKS] Detected '{key}' at ({cx}, {cy})")
+            key, cx, cy = self.detect_object(component)
+            if key and cx is not None:
+                print(f"[TASKS] Detected '{key}' at ({cx}, {cy})")
 
-            x_pick, y_pick = self.pixel_to_robot(cx, cy)
-            self.pick(x_pick, y_pick, component)
-            self.intermediate()
+                x_pick, y_pick = self.pixel_to_robot(cx, cy)
+                self.pick(x_pick, y_pick, component)
+                self.intermediate()
 
-            if self.place(component):
-                print(f"[TASKS] Assembly of '{component}' completed.")
-                self.robot_controller.go_home()
-                return "completed", f"Assembly of '{component}' completed successfully."
-            else:
-                return "error", f"Failed to place '{component}' during assembly."
+                if self.place(component):
+                    print(f"[TASKS] Assembly of '{component}' completed.")
+                    self.robot_controller.go_home()
+                    return "completed", f"Assembly of '{component}' completed successfully."
+                else:
+                    return "error", f"Failed to place '{component}' during assembly."
 
-        print(f"[TASKS] '{component}' not detected. Aborting.")
-        return "error", f"Component '{component}' not detected for assembly."
+            retry_count += 1
+            print(f"[TASKS] Waiting for '{component}' to appear... ({retry_count})")
+            time.sleep(0.05)
+
+        print(f"[TASKS] '{component}' not detected. Timeout.")
+        return "error", f"Component '{component}' not detected after waiting."
 
     def assembly(self, step_working_on: str):
         """
@@ -181,6 +186,11 @@ class RobotTask:
                 "dropoff_positions": {...}
             }
         """
+
+        if self.adaptation == False:
+            print("[RobotTask] Adaptation disabled. Skipping config refresh.")
+            return        
+        
         if isinstance(product_config, str):
             try:
                 product_config = json.loads(product_config)

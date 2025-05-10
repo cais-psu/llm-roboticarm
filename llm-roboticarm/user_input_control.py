@@ -177,7 +177,7 @@ class UserInputControl:
             try:
                 soundoutput = openai.audio.speech.create(
                     model="tts-1",
-                    voice="onyx",
+                    voice="coral",
                     input=message
                 )
                 soundoutput.stream_to_file(file_path)

@@ -39,7 +39,12 @@ if __name__ == "__main__":
     with open(initialization_file_path + "products/products.json") as f:
         product_config = json.load(f)
 
-    robot_spec_file = os.path.join(specification_file_path, 'SOP.pdf')
+    # Specify multiple files clearly here
+    spec_files = [
+        (os.path.join(specification_file_path, 'SOP.pdf'), 'pdf'),
+        (os.path.join(specification_file_path, 'UR5e_Specifications.pdf'), 'pdf'),
+        # Add more files if needed
+    ]
 
     # === Initialize Hardware Control Classes ===
     robot_controller = RobotController(robot_config)
@@ -48,7 +53,13 @@ if __name__ == "__main__":
 
     # === Create Agents ===
     user = agent_creator.create_user()
-    roboticarm_functions = functions.RoboticArmFunctions(robot_spec_file, robot_config, product_config, robot_task)
+    roboticarm_functions = functions.RoboticArmFunctions(
+        spec_files,  # Pass multiple files here
+        robot_config, 
+        product_config, 
+        robot_task,
+        camera_manager
+    )
 
     # create robot agents
     robot_file_path = initialization_file_path + 'resources/robots/'

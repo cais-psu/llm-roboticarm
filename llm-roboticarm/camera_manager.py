@@ -7,7 +7,8 @@ import threading
 import numpy as np
 from collections import deque
 import time
-
+import datetime
+import os
 pathlib.PosixPath = pathlib.WindowsPath
 
 class CameraManager:
@@ -104,11 +105,63 @@ class CameraManager:
         for t in threads:
             t.join()
 
-        for cam_type, frame in processed_frames.items():
-            cv2.imshow(f"CameraManager - {cam_type}", frame)
+        for cam_type in self.camera_config.keys():
+            window_name = f"CameraManager - {cam_type}"
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(window_name, 640, 480)
+            cv2.moveWindow(window_name, 100, 100)     # Place window on screen
+
+            if cam_type in processed_frames:
+                frame = processed_frames[cam_type]
+                cv2.imshow(window_name, frame)
+            else:
+                w, h = self.camera_config[cam_type]["frame_size"]
+                empty_frame = np.zeros((h, w, 3), dtype=np.uint8)
+                cv2.putText(empty_frame, f"No frame from {cam_type}", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.imshow(window_name, empty_frame)
 
         if cv2.waitKey(1) & 0xFF == 27:
             return True
+
+    def capture_scene_with_detections(self, cam_type: str = "cameraA") -> np.ndarray:
+        """
+        Captures a fresh frame from the specified camera, runs YOLO detection, overlays bounding boxes,
+        and returns the annotated image (no saving).
+
+        :param cam_type: The camera identifier as specified in the config.
+        :return: Annotated frame (np.ndarray) or None if unsuccessful.
+        """
+        if cam_type not in self.captures or cam_type not in self.models:
+            print(f"[CameraManager] Camera or model not initialized for: {cam_type}")
+            return None
+
+        cap = self.captures[cam_type]
+
+        # Flush the buffer and grab a fresh frame
+        cap.read()
+        time.sleep(0.1)  # Small delay to ensure new frame is captured
+        ret, frame = cap.read()
+        if not ret:
+            print(f"[CameraManager] Could not read frame from camera '{cam_type}'.")
+            return None
+
+        cam_cfg = self.camera_config[cam_type]
+        frame = cv2.resize(frame, tuple(cam_cfg['frame_size']))
+        frame = frame[cam_cfg['crop'][0]:cam_cfg['crop'][1], cam_cfg['crop'][2]:cam_cfg['crop'][3]]
+        input_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        results = self.models[cam_type](input_frame)
+        coords_plus = results.pandas().xyxy[0]
+
+        for _, row in coords_plus.iterrows():
+            label = row['name']
+            x1, y1, x2, y2 = map(int, [row['xmin'], row['ymin'], row['xmax'], row['ymax']])
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, label, (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        return frame
+
 
 '''
 Bounding Box:
@@ -124,8 +177,9 @@ Bounding Box:
 ------------------ (x2, y2)
 '''
 
-# Optional standalone test
 if __name__ == "__main__":
-    cm = CameraManager()
-    while True:
-        cm.process_all_cameras()
+    with open("llm-roboticarm/initialization/resources/sensors/camera.json") as f:
+        camera_config = json.load(f)
+
+    cm = CameraManager(camera_config)
+    cm.capture_scene_with_detections(cam_type="cameraA")
