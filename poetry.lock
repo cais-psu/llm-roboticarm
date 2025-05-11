@@ -987,6 +987,28 @@ files = [
 ]
 
 [[package]]
+name = "elevenlabs"
+version = "1.58.1"
+description = ""
+optional = false
+python-versions = "<4.0,>=3.8"
+files = [
+    {file = "elevenlabs-1.58.1-py3-none-any.whl", hash = "sha256:2163054cb36b0aa70079f47ef7c046bf8668d5d183fd616b1c1c11d3996a50ce"},
+    {file = "elevenlabs-1.58.1.tar.gz", hash = "sha256:e9f723a528c1bbd80605e639e858f7a58f204860faa9417305a4083508c7c0fb"},
+]
+
+[package.dependencies]
+httpx = ">=0.21.2"
+pydantic = ">=1.9.2"
+pydantic-core = ">=2.18.2,<3.0.0"
+requests = ">=2.20"
+typing_extensions = ">=4.0.0"
+websockets = ">=11.0"
+
+[package.extras]
+pyaudio = ["pyaudio (>=0.2.14)"]
+
+[[package]]
 name = "emoji"
 version = "2.14.0"
 description = "Emoji for Python"
@@ -9495,4 +9517,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "3.11.6"
-content-hash = "dbc85cd29ae42e7849029ea44b6c4d6e9cdc355b566bf2ecb956d88e87e89a47"
+content-hash = "dd01ecdee2b304d09c603a8a2781dd3729094867db6e82ddb1a3e20dfd5766fc"

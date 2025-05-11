@@ -162,6 +162,50 @@ class CameraManager:
 
         return frame
 
+    def capture_scene_with_detections2(self, cam_type: str = "cameraA") -> np.ndarray:
+        """
+        Captures a fresh frame from the specified camera, runs YOLO detection, overlays bounding boxes,
+        saves the annotated image, and returns it.
+
+        :param cam_type: The camera identifier as specified in the config.
+        :return: Annotated frame (np.ndarray) or None if unsuccessful.
+        """
+        if cam_type not in self.captures or cam_type not in self.models:
+            print(f"[CameraManager] Camera or model not initialized for: {cam_type}")
+            return None
+
+        cap = self.captures[cam_type]
+
+        # Flush the buffer and grab a fresh frame
+        cap.read()
+        time.sleep(0.1)  # Small delay to ensure new frame is captured
+        ret, frame = cap.read()
+        if not ret:
+            print(f"[CameraManager] Could not read frame from camera '{cam_type}'.")
+            return None
+
+        cam_cfg = self.camera_config[cam_type]
+        frame = cv2.resize(frame, tuple(cam_cfg['frame_size']))
+        frame = frame[cam_cfg['crop'][0]:cam_cfg['crop'][1], cam_cfg['crop'][2]:cam_cfg['crop'][3]]
+        input_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        results = self.models[cam_type](input_frame)
+        coords_plus = results.pandas().xyxy[0]
+
+        for _, row in coords_plus.iterrows():
+            label = row['name']
+            x1, y1, x2, y2 = map(int, [row['xmin'], row['ymin'], row['xmax'], row['ymax']])
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, label, (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # Save the annotated frame
+        os.makedirs("captured_images", exist_ok=True)
+        save_path = "captured_images/camera_test.jpg"
+        cv2.imwrite(save_path, frame)
+
+        return frame
+
 
 '''
 Bounding Box:
@@ -182,4 +226,4 @@ if __name__ == "__main__":
         camera_config = json.load(f)
 
     cm = CameraManager(camera_config)
-    cm.capture_scene_with_detections(cam_type="cameraA")
+    cm.capture_scene_with_detections2(cam_type="cameraA")

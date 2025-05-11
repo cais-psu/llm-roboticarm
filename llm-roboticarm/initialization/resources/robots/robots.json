@@ -26,7 +26,7 @@
         "x": 0,
         "y": 0
       },
-      "z_pick": 176,
+      "z_pick": 172,
       "z_above": 300,
       "base_position": [0, 0],
       "pickup_orientation": [127.23, -127.21, 0.025],
@@ -45,16 +45,16 @@
           [403, 209]
         ],
         "robot_points": [
-          [379.24, -293.29],
-          [332.875, -102.682],
-          [346.53, -189.55],
-          [412.88, -225.08]
+          [373.24, -293.29],
+          [326.875, -102.682],
+          [340.53, -189.55],
+          [406.88, -225.08]
         ]
       },
       "grasp_strategies": {
-        "housing": { "strategy": "below-top", "gripper_action": "close" },
+        "housing": { "strategy": "top", "gripper_action": "close" },
         "wedge":   { "strategy": "above-top", "gripper_action": "close" },
-        "spring":  { "strategy": "top", "gripper_action": "close_90" },
+        "spring":  { "strategy": "above-top", "gripper_action": "close_90" },
         "cap":     { "strategy": "center", "gripper_action": "close" }
       }
     }

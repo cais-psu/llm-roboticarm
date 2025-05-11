@@ -271,32 +271,10 @@ class LlmAgent:
             except openai.RateLimitError as e:
                 self.logger_agent.error(e)
         return response
-    
-    
-    def chat(self, prompt: str, model: str = None, temperature: float = 0.0) -> str:
-        """
-        Sends a chat message to the language model and processes the response.
-
-        Parameters
-        ----------
-        prompt : str
-            The prompt to send to the model.
-        model : str, optional
-            Model to use for the call (default is self.model).
-        temperature : float, optional
-            Controls randomness of the response (default is 0.0).
         
-        Returns
-        -------
-        tuple
-            Result of the function and messages sent to the model.
-        """
-        
+    def chat(self, prompt: str, latest_user_message: str = "", model: str = None, temperature: float = 0.0) -> tuple[dict, list]:
         with_functions = len(self.function_info) > 0
-        if model:
-            model_ = model
-        elif with_functions:
-            model_ = self.model
+        model_ = model if model else self.model if with_functions else None
 
         msgs = []
         if self.instructions:
@@ -304,45 +282,65 @@ class LlmAgent:
         msgs.append({"role": "user", "content": prompt})
 
         self.logger_agent.info(f"Msgs: {msgs}")
-        response = self.__get_function_call_response(msgs=msgs, model=model_, with_functions=with_functions, temperature=temperature)
+        response = self.__get_function_call_response(
+            msgs=msgs, model=model_, with_functions=with_functions, temperature=temperature
+        )
         self.logger_agent.info(response)
 
-        msgs.append(response.choices[0].message)
         func_res = {}
+        message_obj = response.choices[0].message
+
+        # Record the assistant message
+        if message_obj.function_call:
+            msgs.append({
+                "role": message_obj.role,
+                "function_call": {
+                    "name": message_obj.function_call.name,
+                    "arguments": message_obj.function_call.arguments
+                }
+            })
+        else:
+            msgs.append({
+                "role": message_obj.role,
+                "content": message_obj.content or ""
+            })
+
         try:
             if response.choices[0].finish_reason == "stop":
                 func = "provide_information_or_message"
-                message = response.choices[0].message.content
-                args = {"sender":"","message": message}
+                message = message_obj.content
+                args = {"sender": "", "message": message}
                 self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
                 func_res = {
                     "func_type": "info",
                     "content": message,
-                    "func_name": func  # Include the function name if needed
+                    "func_name": func
                 }
             else:
-                func = response.choices[0].message.function_call.name
-                args = json.loads(response.choices[0].message.function_call.arguments)
+                func = message_obj.function_call.name
+                raw_args = message_obj.function_call.arguments
+                args = json.loads(raw_args)
+
+                if func == "provide_information_or_message":
+                    args["query"] = latest_user_message.strip()
+
                 self.logger_agent.info(f"Function call: {func}; Arguments: {args}")
-                # execute python actionable functions
                 func_res = self.executables[func](**args)
-                func_res['func_name'] = func  # Include the function name in the result
+                func_res["func_name"] = func
 
             self.logger_agent.info(f"Function returned `{func_res}`.")
 
         except KeyError:
-            # This exception is raised when there's no function call in the response
             if response.choices[0].finish_reason == "stop":
-                if 'completed' in response.choices[0].message.content:
-                    #Clear the completed task
+                if 'completed' in (message_obj.content or ""):
                     self.tasks.clear()
                 else:
                     self.logger_agent.info("No further function call to execute")
-
         except Exception as e:
-            self.logger_agent.error(f"An error occurred during function execution: {e}")            
+            self.logger_agent.error(f"An error occurred during function execution: {e}")
 
         return func_res, msgs
+    
     
     def __get_direct_response(self, msgs, temperature=0.0):
         response = None
@@ -476,6 +474,8 @@ class LlmAgent:
                 self.task_states[inbox_identifier] = 'running'
 
                 prompt = self._msg_history_to_prompt([(sender, content)])
+                latest_user_message = content  # this is the clean latest user query
+                func_res, msgs = self.chat(prompt, latest_user_message=latest_user_message)
                 func_res, msgs = self.chat(prompt)
 
                 # If 'func_type' exists, this means that it is not just simple message but function call

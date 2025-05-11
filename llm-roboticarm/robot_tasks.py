@@ -221,6 +221,8 @@ if __name__ == "__main__":
     robot_controller = RobotController(robot_config)
     camera_manager = CameraManager(camera_config)
     robot_task = RobotTask(robot_controller, camera_manager, robot_config, product_config)
+    robot_controller.go_home()
+    time.sleep(1)
     robot_task.assembly('housing')
 
     #robot_task.assembly_continuous()
