@@ -467,7 +467,7 @@ class LlmAgent:
 
     def process_inbox(self):
         """
-        Processes incoming messages in the inbox,  oking the chat function.
+        Processes incoming messages in the inbox,  oking the chat function..
         """        
         def handle_message(sender, content):
             inbox_identifier = general_utils.get_inbox_identifier(sender, content)
