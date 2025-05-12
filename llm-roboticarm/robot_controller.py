@@ -12,9 +12,15 @@ class RobotController:
         self.dashboard_port = config["dashboard_port"]
         self.params = config["params"]
         self.gripper_programs = self.params.get("gripper_programs", {})
-        self.robot = urx.Robot(self.ip)
-        time.sleep(1)
-        self.control_gripper("activate")
+        self.robot = None
+
+        try:
+            self.robot = urx.Robot(self.ip)
+            time.sleep(1)
+            self.control_gripper("activate")
+            print(f"[RobotController] Connected to robot at {self.ip}")
+        except Exception as e:
+            print(f"[RobotController] Failed to connect to robot: {e}. Running in offline mode.")
 
     def send_dashboard(self, cmd, wait=0.2):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -36,6 +42,9 @@ class RobotController:
         self.run_program(self.gripper_programs[action])
 
     def move_to_pose(self, coords_mm_deg):
+        if not self.robot:
+            print("[RobotController] Robot is not connected. Skipping move_to_pose.")
+            return
         pos_m = [c / 1000.0 for c in coords_mm_deg[:3]]
         orient_rad = [math.radians(a) for a in coords_mm_deg[3:]]
         pose = pos_m + orient_rad
