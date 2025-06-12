@@ -166,7 +166,7 @@ class XArm:
 
 
 if __name__ == '__main__':
-    params_path = 'Gear.json'
+    params_path = 'vision_data/Train/Gear.json'
     with open(params_path,'r') as f:
         params = json.load(f)
     arm = XArm(params)
