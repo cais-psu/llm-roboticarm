@@ -22,14 +22,18 @@ class XArm:
         :param save_folder: where to save the captured frame
         :param robot_ip: IP address of the XArm
         """
+        # initialize z direction
+        self.z_list = [195, 185]
+        self.z_count = 0
+
         # Parse movement parameters
         if isinstance(params_movement, str):
             self.params_movement = json.loads(params_movement)
         else:
             self.params_movement = params_movement
         self.gear_steps = {
-            'Gear_Small': self.params_movement.get('gear1', []),
-            'Gear_Big':   self.params_movement.get('gear2', [])
+            'Gear_Small': self.params_movement.get('gear3', []),
+            'Gear_Big':   self.params_movement.get('gear4', [])
         }
 
         # Initialize robot
@@ -120,14 +124,30 @@ class XArm:
                         auto_enable=self.settings['auto_enable']
                     )
                 elif len(step) == 4:  # offset from center
-                    dx, dy, dz, *_ = step
                     self.arm.set_position(
-                        x0 + dx, y0 + dy, dz,
+                        x0 , y0 ,*step,
                         speed=self.settings['speed'],
                         mvacc=self.settings['acc'],
                         radius=self.settings['radius'],
                         wait=self.settings['wait']
                     )
+                elif len(step) == 3:  # place gear on the base
+                    x,y = adjusted.get('Base')
+                    z = self.z_list[self.z_count % len(self.z_list)]
+                    self.z_count += 1
+                    offsets = {
+                        'small gear': (-7.5, -7.5),
+                        'big gear': (12.5, 12.5),
+                    }
+                    dx,dy = offsets.get(cls.lower(),(0,0))
+                    x1, y1 = x+dx, y+dy
+                    self.arm.set_position(
+                    x1, y1 ,z,
+                    speed=self.settings['speed'],
+                    mvacc=self.settings['acc'],
+                    radius=self.settings['radius'],
+                    wait=self.settings['wait']
+                        )
                 else:  # absolute coords
                     self.arm.set_position(
                         *step,
@@ -146,8 +166,8 @@ class XArm:
 
 
 if __name__ == '__main__':
-    params_path = Path('Gear.json')
-    with open(params_path) as f:
+    params_path = 'Gear.json'
+    with open(params_path,'r') as f:
         params = json.load(f)
     arm = XArm(params)
     arm.robotic_assembly()
